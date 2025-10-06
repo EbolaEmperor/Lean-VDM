@@ -12,11 +12,11 @@ example (f : ℝ → ℝ) (u : ℕ → ℝ) (x₀ : ℝ) (hu : seq_limit u x₀)
   seq_limit (f ∘ u) (f x₀) := by
   intro ε ε_pos
   specialize hf ε ε_pos
-  rcases hf with ⟨δ, δ_pos, hfδ⟩
+  rcases hf with ⟨δ, δ_pos, hf⟩
   specialize hu δ δ_pos
-  rcases hu with ⟨N, huN⟩
+  rcases hu with ⟨N, hu⟩
   use N
   intro n n_geqN
-  specialize huN n n_geqN
-  specialize hfδ (u n)
-  apply hfδ huN
+  specialize hu n n_geqN
+  specialize hf (u n)
+  apply hf hu
