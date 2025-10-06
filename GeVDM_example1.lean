@@ -293,7 +293,7 @@ theorem det_GeVDM_example1 (n : ℕ) (hn : n ≥ 1) (u : Fin n → ℝ)
     simp [GeVDM, ClassicalVDM]
     rw [heN]
     ring
-  | n' + 2, _ =>
+  | n' + 2, ih =>
     -- 归纳步骤: n ≥ 2
     -- 假设对于 n' + 1，定理成立
 
@@ -456,7 +456,102 @@ theorem det_GeVDM_example1 (n : ℕ) (hn : n ≥ 1) (u : Fin n → ℝ)
       · simp [hj]
 
     let u_trunc : Fin (n-1) → ℝ := fun i => u ⟨i.val + 1, by omega⟩
+    let u_trunc_pw : Fin (n-1) → ℝ := fun i => u ⟨i.val + 1, by omega⟩ ^ (n - 2)
     let SM2 := updateCol SM ⟨n-2, by omega⟩ v2
-    let SM2_0 := ClassicalVDM (n-1) u_trunc
+    let SM2_0 := updateCol SM ⟨n-2, by omega⟩ u_trunc_pw
+    let s := u ⟨0, by omega⟩
 
-    sorry
+    have v2_eq_s_smul_utrpw : v2 = s • u_trunc_pw := by
+      exact rfl
+
+    have utrpw_eq_SM20_lst_col : SM2_0 = ClassicalVDM (n-1) u_trunc := by
+      ext i j
+      simp only [SM2_0, updateCol, ClassicalVDM, u_trunc, u_trunc_pw]
+      by_cases hj : j = ⟨n-2, by omega⟩
+      · -- 当 j 是最后一列时
+        simp [hj]
+      · -- 当 j 不是最后一列时
+        simp [hj]
+        simp only [SM, SimpM]
+        have hj_lt : j.val < n - 2 := by
+          have hbound : j.val < n - 1 := j.isLt
+          by_contra hnlt
+          push_neg at hnlt
+          have : j.val = n - 2 := by omega
+          have : j = ⟨n-2, by omega⟩ := Fin.ext this
+          contradiction
+        simp [hj_lt]
+
+    have det_SM2 : det SM2 = s * (det SM2_0) := by
+      apply det_updateCol_smul SM ⟨n-2, by omega⟩ s u_trunc_pw
+
+    have det_SM2_final : det SM2 = s * ∏ i : Fin (n-1), ∏ j ∈ Ioi i, (u j.succ - u i.succ) := by
+      calc det SM2 = s * (det SM2_0) := by simp [det_SM2]
+                 _ = s * det (ClassicalVDM (n-1) u_trunc) :=
+                     by congr 1; simp [utrpw_eq_SM20_lst_col];
+                 _ = s * ∏ i : Fin (n-1), ∏ j ∈ Ioi i, (u_trunc j - u_trunc i) :=
+                     by congr 1; apply det_ClassicalVDM
+
+    let SM1 := updateCol SM ⟨n-2, by omega⟩ v1
+
+    have det_SM_eq_det_SM1_plue_det_SM2 :
+      det SM = (det SM1) + (det SM2) := by
+      rw [decomp_SM]
+      apply det_updateCol_add SM ⟨n-2, by omega⟩ v1 v2
+
+    -- 现在对 SM1 使用归纳假设
+    -- 构造指数函数 e'，使得 SM1 = GeVDM (n-1) u_trunc e'
+    let e' : Fin (n-1) → ℕ := fun j =>
+      if j.val < n - 2 then j.val else n - 1
+
+    -- 证明 SM1 = GeVDM (n-1) u_trunc e'
+    have hSM1_eq_GeVDM : SM1 = GeVDM (n-1) u_trunc e' := by
+      ext i j
+      simp only [SM1, updateCol, GeVDM, SM, u_trunc, v1, e', of_apply, Function.update]
+      by_cases hj_eq : j = ⟨n-2, by omega⟩
+      · -- j 是最后一列（被更新的列）
+        subst_vars
+        simp
+      · -- j 不是最后一列
+        simp [hj_eq]
+        have hj_lt : j.val < n - 2 := by
+          have hbound : j.val < n - 1 := j.isLt
+          by_contra hnlt
+          push_neg at hnlt
+          have : j.val = n - 2 := by omega
+          apply hj_eq
+          exact Fin.ext this
+        simp [hj_lt, SimpM]
+
+    -- 应用归纳假设
+    -- 注意：match 语句中，ih 在 n = n' + 2 的情况下表示前提条件 n' + 2 ≥ 1
+    -- 真正的归纳假设需要通过递归调用 det_GeVDM_example1 本身来使用
+
+    have h_ih : det (GeVDM (n-1) u_trunc e') =
+        (∑ i : Fin (n-1), u_trunc i) * det (ClassicalVDM (n-1) u_trunc) := by
+      -- 由于 n = n' + 2，所以 n - 1 = n' + 1 ≥ 1
+      have hn'1_ge : n - 1 ≥ 1 := by omega
+      -- 验证 e' 满足定理的条件
+      have he' : ∀ i : Fin (n-1), i.val < n - 1 - 1 → e' i = i.val := by
+        intro i hi
+        simp only [e']
+        have : i.val < n - 2 := by omega
+        simp [this]
+      -- 构造 iLast'
+      have hn2_lt : n - 2 < n - 1 := by omega
+      let iLast' : Fin (n-1) := ⟨n-2, hn2_lt⟩
+      have hiLast' : iLast'.val = n - 1 - 1 := by simp [iLast']; omega
+      have heN' : e' iLast' = n - 1 := by
+        simp only [iLast', e']
+        have : ¬(n - 2 < n - 2) := by omega
+        simp
+      -- 递归调用定理本身
+      exact det_GeVDM_example1 (n-1) hn'1_ge u_trunc e' he' iLast' hiLast' heN'
+
+    -- 结合 SM1 和归纳假设
+    have det_SM1_final : det SM1 =
+        (∑ i : Fin (n-1), u ⟨i.val + 1, by omega⟩) * det (ClassicalVDM (n-1) u_trunc) := by
+      calc det SM1 = det (GeVDM (n-1) u_trunc e') := by rw [hSM1_eq_GeVDM]
+        _ = (∑ i : Fin (n-1), u_trunc i) * det (ClassicalVDM (n-1) u_trunc) := h_ih
+
+    rw [det_SM_eq_det_SM1_plue_det_SM2, det_SM1_final, det_SM2_final]
