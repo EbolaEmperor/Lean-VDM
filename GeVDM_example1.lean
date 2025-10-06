@@ -555,3 +555,40 @@ theorem det_GeVDM_example1 (n : ℕ) (hn : n ≥ 1) (u : Fin n → ℝ)
         _ = (∑ i : Fin (n-1), u_trunc i) * det (ClassicalVDM (n-1) u_trunc) := h_ih
 
     rw [det_SM_eq_det_SM1_plue_det_SM2, det_SM1_final, det_SM2_final]
+
+    -- 现在需要证明目标等式
+    -- 左边 = (∏ i, v i) * ((∑ i, u ⟨i + 1⟩) * det + s * ∏ i, ∏ j ∈ Ioi i, ...)
+    -- 右边 = (∑ i, u i) * det(ClassicalVDM n u)
+
+    have det_expand : det (ClassicalVDM n u) =
+        (∏ i : Fin (n-1), (u ⟨i.val + 1, by omega⟩ - u 0)) * det (ClassicalVDM (n-1) u_trunc) := by
+      have hn_eq : n = n - 1 + 1 := by omega
+      let u' : Fin (n - 1 + 1) → ℝ := fun i => u ⟨i.val, by omega⟩
+      have hu_eq_u' : ClassicalVDM n u = ClassicalVDM (n - 1 + 1) u' := by
+        ext i j
+        simp [ClassicalVDM, u']
+      rw [hu_eq_u']
+      have h := vandermonde_reduction (n-1) u'
+      simp only at h
+      calc det (ClassicalVDM (n - 1 + 1) u')
+          = (∏ i : Fin (n-1), (u' i.succ - u' 0))
+            * det (ClassicalVDM (n-1) (fun i => u' i.succ)) := h
+        _ = (∏ i : Fin (n-1), (u ⟨i.val + 1, by omega⟩ - u 0))
+            * det (ClassicalVDM (n-1) u_trunc) := by rfl
+
+    have sum_expand : ∑ i : Fin n, u i = u 0 + ∑ i : Fin (n-1), u ⟨i.val + 1, by omega⟩ := by
+      exact Fin.sum_univ_succAbove u 0
+
+    -- 关键：建立 det_SM2_final 中的乘积与 ClassicalVDM 行列式的关系
+    have prod_relation : ∏ i : Fin (n-1), ∏ j ∈ Ioi i, (u j.succ - u i.succ) =
+        det (ClassicalVDM (n-1) u_trunc) := by
+      rw [det_ClassicalVDM]
+      rfl
+
+    have hu0_eq : u 0 = u i0 := by rfl
+
+    rw [sum_expand, det_expand, ← prod_relation]
+    simp only [v, s, i0, hu0_eq]
+
+    -- 现在目标是代数恒等式，用 ring 即可
+    ring
