@@ -1,6 +1,7 @@
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Nat.Cast.Basic
 import Mathlib.LinearAlgebra.Matrix.Basis
+import Mathlib.LinearAlgebra.Matrix.rank
 import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
 import Mathlib.Algebra.BigOperators.Finprod
 import Mathlib.Data.Fintype.BigOperators
@@ -38,9 +39,6 @@ lemma reduced_submatrix_eq_scaled (n : ℕ) (u : Fin (n + 1) → ℝ) :
 /-- 列操作引理：通过列操作将 Vandermonde 矩阵转换为 ReducedVDM -/
 lemma vandermonde_to_reduced (n : ℕ) (u : Fin (n + 1) → ℝ) :
   det (ClassicalVDM (n + 1) u) = det (ReducedVDM n u) := by
-  -- 使用列操作定理：对每一列，从它减去 u₀ 倍的前一列
-  -- det_eq_of_forall_col_eq_smul_add_pred 要求: A[:, j+1] = B[:, j+1] + c[j] * A[:, j]
-  -- 我们有: ClassicalVDM[:, j+1] = ReducedVDM[:, j+1] + u₀ * ClassicalVDM[:, j]
   apply det_eq_of_forall_col_eq_smul_add_pred (fun _ => u 0)
   · -- 第0列保持不变：ClassicalVDM 和 ReducedVDM 的第0列都是全1
     intro i
@@ -102,7 +100,6 @@ lemma vandermonde_reduction (n : ℕ) (u : Fin (n + 1) → ℝ) :
   rw [det_succ_row_zero]
 
   -- Step 3: 第一行是 [1, 0, 0, ...] (用 reduced_first_row)
-  -- 所以只有 j=0 的项非零
   have h_first_row := reduced_first_row n u
   conv_lhs =>
     arg 2; ext j
@@ -110,37 +107,27 @@ lemma vandermonde_reduction (n : ℕ) (u : Fin (n + 1) → ℝ) :
 
   -- Step 4: 简化求和，只有 j=0 的项非零
   rw [Finset.sum_eq_single 0]
-  · -- j = 0 的情况
-    simp only [Fin.val_zero, pow_zero, one_mul, ite_true, mul_one]
+  · simp only [Fin.val_zero, pow_zero, one_mul, ite_true, mul_one]
 
-    -- 现在需要证明子矩阵的行列式等于因子乘积乘以 ClassicalVDM n u'
-    -- 使用 det_mul_column 从每行提取因子 (u i.succ - u 0)
     have h_submatrix : ∀ i j, (ReducedVDM n u).submatrix Fin.succ (0 : Fin (n+1)).succAbove i j =
         (u i.succ - u 0) * u' i ^ (j : ℕ) := by
       intro i j
       simp only [submatrix, Fin.succAbove_zero]
       exact reduced_submatrix_eq_scaled n u i j
 
-    -- 构造中间矩阵来提取因子
     let M : Matrix (Fin n) (Fin n) ℝ := fun i j => (u i.succ - u 0) * u' i ^ (j : ℕ)
     have : (ReducedVDM n u).submatrix Fin.succ (0 : Fin (n+1)).succAbove = M := by
       ext i j; exact h_submatrix i j
     rw [this]
 
-    -- 使用 det_mul_column 提取因子
     have : det M = (∏ i : Fin n, (u i.succ - u 0)) * det (ClassicalVDM n u') := by
       simp only [M]
       rw [← det_mul_column (fun (i : Fin n) => u i.succ - u 0)]
       congr 1
     rw [this]
-
-  · -- j ≠ 0 的情况都是 0
-    intro j _ hj
+  · intro j _ hj
     simp only [if_neg hj, zero_mul, mul_zero]
-
-  · -- 如果集合为空（不可能）
-    intro h
-    simp at h
+  · simp
 
 /-- 乘积重排引理：将 Fin (n+1) 上的乘积分解为第一项和剩余项 -/
 lemma prod_ioi_succ (n : ℕ) (u : Fin (n + 1) → ℝ) :
@@ -186,32 +173,23 @@ lemma prod_ioi_succ (n : ℕ) (u : Fin (n + 1) → ℝ) :
 /-- Vandermonde 矩阵的行列式等于所有 (u_j - u_i) 的乘积，其中 i < j -/
 theorem det_ClassicalVDM (n : ℕ) (u : Fin n → ℝ) :
   det (ClassicalVDM n u) = ∏ i : Fin n, ∏ j ∈ Ioi i, (u j - u i) := by
-  -- 证明策略：使用关于 n 的归纳法
   induction n with
   | zero =>
-    -- 基础情况：0×0 矩阵的行列式为 1，空乘积也是 1
     simp [det_isEmpty, Finset.prod_empty]
   | succ n ih =>
-    -- 归纳步骤：假设对 n 成立，证明对 n+1 成立
-    -- 定义 u' 为去掉第一个元素后的向量
     let u' : Fin n → ℝ := fun i => u i.succ
 
-    -- 步骤 1: 使用列操作将矩阵简化（从每列减去第一列的倍数）
-    -- 这样可以从每一行（除第一行外）提取因子 (uᵢ - u₀)
     have h_reduction : det (ClassicalVDM (n + 1) u) =
       (∏ i : Fin n, (u i.succ - u 0)) * det (ClassicalVDM n u') :=
         vandermonde_reduction n u
 
-    -- 步骤 2: 应用归纳假设到 u'
     have h_ih : det (ClassicalVDM n u') =
       ∏ i : Fin n, ∏ j ∈ Ioi i, (u' j - u' i) := ih u'
 
-    -- 步骤 3: 重写右侧的乘积
     have h_prod : (∏ i : Fin (n + 1), ∏ j ∈ Ioi i, (u j - u i)) =
       (∏ i : Fin n, (u i.succ - u 0)) *
       (∏ i : Fin n, ∏ j ∈ Ioi i, (u' j - u' i)) := prod_ioi_succ n u
 
-    -- 步骤 4: 组合所有等式
     calc det (ClassicalVDM (n + 1) u)
         = (∏ i : Fin n, (u i.succ - u 0)) * det (ClassicalVDM n u') :=
             h_reduction
@@ -220,3 +198,28 @@ theorem det_ClassicalVDM (n : ℕ) (u : Fin n → ℝ) :
             rw [h_ih]
       _ = ∏ i : Fin (n + 1), ∏ j ∈ Ioi i, (u j - u i) := by
             rw [← h_prod]
+
+theorem det_ClassicalVDM_non_zero (n : ℕ) (u : Fin n → ℝ)
+        (hu : ∀ i j : Fin n, i ≠ j → u i ≠ u j) :
+  det (ClassicalVDM n u) ≠ 0 := by
+  rw [det_ClassicalVDM n u]
+  refine Finset.prod_ne_zero_iff.mpr ?_
+  intro i _
+  refine Finset.prod_ne_zero_iff.mpr ?_
+  intro j hj
+  have hij_gt : i < j := by simpa [Finset.mem_Ioi] using hj
+  have hne_ij : u j ≠ u i := hu j i (ne_of_gt hij_gt)
+  exact sub_ne_zero.mpr hne_ij
+
+theorem rank_ClassicalVDM_full (n : ℕ) (u : Fin n → ℝ)
+        (hu : ∀ i j : Fin n, i ≠ j → u i ≠ u j) :
+  rank (ClassicalVDM n u) = n  := by
+  have hdet : det (ClassicalVDM n u) ≠ 0 :=
+    det_ClassicalVDM_non_zero n u hu
+  have hUnit : IsUnit (det (ClassicalVDM n u)) :=
+    isUnit_iff_ne_zero.mpr hdet
+  simpa [Matrix.rank_one, Fintype.card_fin] using
+    (Matrix.rank_mul_eq_left_of_isUnit_det
+      (A := ClassicalVDM n u)
+      (B := (1 : Matrix (Fin n) (Fin n) ℝ))
+      hUnit)

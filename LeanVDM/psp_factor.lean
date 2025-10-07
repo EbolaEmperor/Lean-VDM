@@ -11,11 +11,9 @@ lemma sum_diff_helper_1 (x y : ℝ) (n : ℕ) (hn : n ≥ 1) :
   (∑ i ∈ range n, x ^ i * y ^ (n - 1 - i)) =
   (∑ i ∈ range (n-1), x ^ i * y ^ (n - 1 - i)) + x^(n-1) := by
   obtain ⟨n', rfl⟩ := Nat.exists_eq_add_of_le hn
-  have h1 : 1 + n' - 1 = n' := by omega
-  simp only [h1]
+  have : 1 + n' - 1 = n' := by omega
+  simp [this]
   rw [Nat.add_comm 1 n', Finset.sum_range_succ]
-  congr 1
-  rw [Nat.sub_self]
   simp
 
 lemma sum_diff_helper_2 (x y : ℝ) (n : ℕ) (hn : n ≥ 1) :
@@ -27,37 +25,40 @@ lemma sum_diff_helper_2 (x y : ℝ) (n : ℕ) (hn : n ≥ 1) :
   · simp [pow_zero, one_mul, add_comm]
   · simp
 
+lemma sum_shift_one (n : ℕ) (hn : n ≥ 1) (u : ℕ → ℝ) :
+  ∑ i ∈ range (n-1), u i = ∑ i ∈ Ico 1 n, u (i-1) := by
+  apply Finset.sum_bij (fun i _ => i + 1)
+  · intro i hi
+    simp only [Finset.mem_range] at hi
+    simp [Finset.mem_Ico]
+    omega
+  · omega
+  · intro b hb
+    simp only [Finset.mem_Ico] at hb
+    use b - 1
+    refine ⟨?_, by omega⟩
+    simp only [Finset.mem_range]
+    omega
+  · simp
+
 lemma sum_diff_helper_3 (x y : ℝ) (n : ℕ) (hn : n ≥ 1) :
   x * (∑ i ∈ range (n-1), x ^ i * y ^ (n - 1 - i)) =
   y * (∑ i ∈ Ico 1 n, x ^ i * y ^ (n - 1 - i)) := by
+
+  let u : ℕ → ℝ := fun i => x ^ (i + 1) * y ^ (n - 1 - i);
+
   calc x * (∑ i ∈ range (n-1), x ^ i * y ^ (n - 1 - i))
     = ∑ i ∈ range (n-1), x * x ^ i * y ^ (n - 1 - i) := by rw [Finset.mul_sum]; congr 1; ext i; ring
   _ = ∑ i ∈ range (n-1), x ^ (i+1) * y ^ (n - 1 - i) := by
-      congr 1; ext i; ring_nf
+      congr 1; ext i; ring_nf;
+  _ = ∑ i ∈ range (n-1), u i := by rfl
+  _ = ∑ i ∈ Ico 1 n, u (i-1) := by apply sum_shift_one n hn u
   _ = ∑ i ∈ Ico 1 n, x ^ i * y ^ (n - i) := by
-      apply Finset.sum_bij (fun i _ => i + 1)
-      · intro i hi
-        simp only [Finset.mem_range] at hi
-        simp only [Finset.mem_Ico]
-        constructor
-        · omega
-        · have : i + 1 ≤ n - 1 := by omega
-          omega
-      · intro a₁ _ a₂ _; omega
-      · intro b hb
-        simp only [Finset.mem_Ico] at hb
-        use b - 1
-        refine ⟨?_, by omega⟩
-        simp only [Finset.mem_range]
-        have : 1 ≤ b := hb.1
-        have : b < n := hb.2
-        have : n ≥ 1 := hn
-        omega
-      · intro a ha
-        simp only [Finset.mem_range] at ha
-        congr 1
-        have : a + 1 = 1 + a := by omega
-        rw [this, ← Nat.sub_sub]
+      refine Finset.sum_congr rfl fun i hi => ?_
+      simp only [Finset.mem_Ico] at hi
+      have hi1 : i - 1 + 1 = i := by omega
+      have hin : n - 1 - (i - 1) = n - i := by omega
+      unfold u; rw [hi1, hin];
   _ = y * (∑ i ∈ Ico 1 n, x ^ i * y ^ (n - 1 - i)) := by
       rw [Finset.mul_sum]; refine Finset.sum_congr rfl fun i hi => ?_
       simp only [Finset.mem_Ico] at hi
