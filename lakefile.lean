@@ -18,5 +18,5 @@ lean_lib «LeanVDM» where
   -- add library configuration options here
 
 @[default_target]
-lean_lib «GeVDM_example1» where
+lean_lib «examples/example1_GeVDM» where
   -- add any library configuration options here
