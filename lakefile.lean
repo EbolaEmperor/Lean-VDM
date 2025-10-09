@@ -10,6 +10,8 @@ package "Lean_VDM" where
     ⟨`relaxedAutoImplicit, false⟩,
     ⟨`maxSynthPendingDepth, .ofNat 3⟩,
     ⟨`weak.linter.mathlibStandardSet, true⟩,
+    ⟨`maxHeartbeats, .ofNat 10000000⟩,
+    ⟨`maxRecDepth, .ofNat 1000000⟩
   ]
 
 require "leanprover-community" / "mathlib"
@@ -18,5 +20,5 @@ lean_lib «LeanVDM» where
   -- add library configuration options here
 
 @[default_target]
-lean_lib «examples/example1_GeVDM» where
+lean_lib «todo/example2_GeVDM» where
   -- add any library configuration options here

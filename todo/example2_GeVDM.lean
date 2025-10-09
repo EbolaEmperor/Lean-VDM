@@ -7,10 +7,10 @@ def n := 4
 def e : Fin n → ℕ := ![0, 1, 10, 11]
 
 def u (α β : ℝ) : Fin n → ℂ :=
-  ![Complex.exp (Complex.I * α),
-    Complex.exp (Complex.I * β),
-    Complex.exp (Complex.I * (α + 0.2 * π)),
-    Complex.exp (Complex.I * (β + 0.2 * π))]
+  ![exp (I * α),
+    exp (I * β),
+    exp (I * (α + 0.2 * π)),
+    exp (I * (β + 0.2 * π))]
 
 def V (α β : ℝ) : Matrix (Fin n) (Fin n) ℂ :=
   GeVDM n (u α β) e
@@ -19,6 +19,42 @@ def V (α β : ℝ) : Matrix (Fin n) (Fin n) ℂ :=
 def x (α : ℝ) : ℂ := exp (α * I)
 def y (β : ℝ) : ℂ := exp (β * I)
 def t := exp (0.2 * π * I)
+
+lemma t_pow_10 : t^10 = 1 := by
+  rw [t, ← Complex.exp_nat_mul]
+  convert Complex.exp_two_pi_mul_I using 2
+  ring
+
+lemma t_pow_11 : t^11 = t := by
+  calc t^11 = t^10 * t := by ring
+          _ = t := by rw [t_pow_10]; simp
+
+-- 说明 u 向量的结构：u = [x, y, t*x, t*y]
+lemma u_structure (α β : ℝ) :
+  u α β = ![x α, y β, t * x α, t * y β] := by
+  ext i
+  fin_cases i
+  · simp [u, x]; ring_nf
+  · simp [u, y]; ring_nf
+  · simp [u, x, t]; rw [← Complex.exp_add]; ring_nf
+  · simp [u, y, t]; rw [← Complex.exp_add]; ring_nf
+
+def V₀ (α β : ℝ) := !![1, x α, (x α)^10, (x α)^11;
+                       1, y β, (y β)^10, (y β)^11;
+                       1, t * x α, (x α)^10, t * (x α)^11;
+                       1, t * y β, (y β)^10, t * (y β)^11]
+
+-- V 矩阵的显式表达
+lemma V_explicit (α β : ℝ) :
+  V α β = V₀ α β := by
+  ext i j
+  rw [V, GeVDM, V₀]
+  simp only [u_structure]
+  fin_cases i <;> fin_cases j <;> simp [e]
+  · rw [mul_pow, t_pow_10]; ring
+  · rw [mul_pow, t_pow_11]
+  · rw [mul_pow, t_pow_10]; ring
+  · rw [mul_pow, t_pow_11]
 
 lemma t_ne_1 : t ≠ 1 := by
   intro h
@@ -51,72 +87,230 @@ lemma exp_10_ne (α β : ℝ) (hα : 0 ≤ α) (hαβ : α < β) (hβ : β < 0.2
   exp (I * (10 * β)) ≠ exp (I * (10 * α)) := by
   intro h
   -- 由 exp 的周期性，exp(z1) = exp(z2) ↔ ∃ n : ℤ, z1 - z2 = 2πni
-  have : ∃ n : ℤ, I * (10 * β) - I * (10 * α) = ↑n * (2 * π * I) := by
-    rw [← Complex.exp_eq_exp_iff_exists_int]
-    exact h
-  rcases this with ⟨n, hn⟩
-  -- 所以 10(β - α) * I = n * 2π * I
-  -- 除以 I 得 10(β - α) = 2πn
-  have h_I_ne : (I : ℂ) ≠ 0 := Complex.I_ne_zero
-  have : (10 * (β - α) : ℂ) = 2 * π * ↑n := by
-    have : I * (10 * ↑β - 10 * ↑α) = ↑n * (2 * ↑π * I) := by
-      calc I * (10 * ↑β - 10 * ↑α)
-          = I * (10 * ↑β) - I * (10 * ↑α) := by ring
-        _ = ↑n * (2 * ↑π * I) := hn
-    calc (10 * (β - α) : ℂ)
-        = 10 * ↑β - 10 * ↑α := by push_cast; ring
-      _ = (I * (10 * ↑β - 10 * ↑α)) / I := by field_simp [h_I_ne]
-      _ = (↑n * (2 * ↑π * I)) / I := by rw [this]
-      _ = 2 * ↑π * ↑n := by field_simp [h_I_ne]; ring
-  -- 但 0 < 10(β - α) < 2π，而 2πn 在这个范围内只能是 0
-  -- (当 n=0 时 2πn=0，但 10(β-α) > 0)
+  have h_period : ∃ n : ℤ, I * (10 * β) - I * (10 * α) = n * (2 * π * I) := by
+    rw [Complex.exp_eq_exp_iff_exists_int] at h
+    rcases h with ⟨n, hn⟩
+    use n
+    linear_combination hn
+
+  rcases h_period with ⟨n, hn⟩
+
+  -- 从 I * 10(β - α) = n * 2πI 得到 10(β - α) = 2πn
+  have h_eq : 10 * (β - α) = 2 * π * (n : ℝ) := by
+    have h_I_ne : (I : ℂ) ≠ 0 := Complex.I_ne_zero
+    have h_calc : I * (10 * (β : ℂ) - 10 * (α : ℂ)) = (n : ℂ) * (2 * π * I) := by
+      linear_combination hn
+    have h_complex : (10 * (β - α) : ℂ) = (n : ℂ) * (2 * π) := by
+      field_simp [h_I_ne] at h_calc ⊢
+      linear_combination h_calc
+    have := congrArg Complex.re h_complex
+    simp at this
+    ring_nf at this ⊢
+    exact this
+
+  -- 但 0 < 10(β - α) < 2π
   have h_range : 0 < 10 * (β - α) ∧ 10 * (β - α) < 2 * π := by
     constructor
     · linarith
-    · calc 10 * (β - α) < 10 * (0.2 * π) := by linarith
+    · calc 10 * (β - α)
+          < 10 * (0.2 * π) := by linarith
         _ = 2 * π := by ring
-  have : (10 * (β - α) : ℝ) = 2 * π * (n : ℝ) := by
-    have := congrArg Complex.re this
-    simp at this
-    exact this
+
   -- 如果 n = 0，则 β = α，矛盾
-  -- 如果 |n| ≥ 1，则 |2πn| ≥ 2π > 10(β-α)，矛盾
   by_cases hn_zero : n = 0
-  · rw [hn_zero] at this
-    simp at this
+  · rw [hn_zero] at h_eq
+    simp at h_eq
     linarith
-  · have : |2 * π * (n : ℝ)| ≥ 2 * π := by
-      have : |(n : ℝ)| ≥ 1 := by
-        have : n ≠ 0 := hn_zero
-        have := Int.one_le_abs this
-        simp [abs_eq_self] at this ⊢
+
+  -- 如果 n ≠ 0，则 |2πn| ≥ 2π，但 10(β-α) < 2π，矛盾
+  · have h_abs_ge : |2 * π * (n : ℝ)| ≥ 2 * π := by
+      have h_n_abs : |(n : ℝ)| ≥ 1 := by
+        have := Int.one_le_abs hn_zero
         exact mod_cast this
-      calc |2 * π * (n : ℝ)| = 2 * π * |(n : ℝ)| := by rw [abs_mul, abs_of_pos]; linarith [Real.pi_pos]
-        _ ≥ 2 * π * 1 := by linarith
+      calc |2 * π * (n : ℝ)|
+          = 2 * π * |(n : ℝ)| := by
+            rw [abs_mul]
+            congr 1
+            rw [abs_of_pos]
+            linarith [Real.pi_pos]
+        _ ≥ 2 * π * 1 := by
+            apply mul_le_mul_of_nonneg_left h_n_abs
+            linarith [Real.pi_pos]
         _ = 2 * π := by ring
-    rw [← this] at this
+
+    -- 但 10(β-α) = 2πn 且 0 < 10(β-α) < 2π
+    -- 由 h_eq : 10(β-α) = 2πn 和 h_range.1 知 2πn > 0
+    -- 所以 |2πn| = 2πn = 10(β-α) < 2π，与 |2πn| ≥ 2π 矛盾
+    have : 10 * (β - α) < 2 * π := h_range.2
+    have : 2 * π * (n : ℝ) < 2 * π := by rw [← h_eq]; exact this
+    have h_pos : 2 * π * (n : ℝ) > 0 := by rw [← h_eq]; exact h_range.1
+    have : |2 * π * (n : ℝ)| = 2 * π * (n : ℝ) := abs_of_pos h_pos
     linarith
+
+-------------------------- Step 1 ----------------------------
+
+def V₁ (α β : ℝ) : Matrix (Fin 4) (Fin 4) ℂ :=
+  !![1, x α, (x α)^10, (x α)^11;
+     1, y β, (y β)^10, (y β)^11;
+     1 - t, 0, (1 - t) * (x α)^10, 0;
+     1 - t, 0, (1 - t) * (y β)^10, 0]
+
+lemma det_V_eq_det_V₁ (α β : ℝ) : det (V α β) = det (V₁ α β) := by
+  rw [V_explicit]
+  let M := updateRow (V₀ α β) 2 ((V₀ α β) 2 + (-t) • (V₀ α β) 0);
+  calc det (V₀ α β)
+      = det M := by
+          have h_ne1 : (2 : Fin 4) ≠ (0 : Fin 4) := by decide
+          rw [det_updateRow_add_smul_self (V₀ α β) h_ne1 (-t)]
+    _ = det (V₁ α β) := by
+          have h_ne2 : (3 : Fin 4) ≠ (1 : Fin 4) := by decide
+          have hV₁ : V₁ α β = updateRow M 3 (M 3 + (-t) • M 1) := by
+            unfold M
+            ext i j
+            simp [V₁, V₀, updateRow]
+            fin_cases i <;> fin_cases j <;> simp <;> ring
+          rw [hV₁, det_updateRow_add_smul_self _ h_ne2 (-t)]
+
+-------------------------- Step 2 ----------------------------
+
+def V₂ (α β : ℝ) : Matrix (Fin 4) (Fin 4) ℂ :=
+  !![1, x α, (x α)^10, (x α)^11;
+     1, y β, (y β)^10, (y β)^11;
+     1, 0, (x α)^10, 0;
+     1, 0, (y β)^10, 0]
+
+lemma det_V₁_eq_det_V₂ (α β : ℝ) : det (V₁ α β) = (1 - t)^2 * det (V₂ α β) := by
+  let M := updateRow (V₁ α β) 2 ((V₂ α β) 2)
+  calc det (V₁ α β)
+      = det (updateRow (V₁ α β) 2 ((1 - t) • (V₂ α β) 2)) := by
+          congr 1
+          ext i j
+          simp [V₁, V₂, updateRow]
+          fin_cases i <;> fin_cases j <;> simp
+    _ = (1 - t) * det M := by
+          rw [det_updateRow_smul]
+    _ = (1 - t) * det (updateRow M 3 ((1 - t) • (V₂ α β) 3)) := by
+          unfold M
+          congr 2
+          ext i j
+          simp [V₁, V₂, updateRow]
+          fin_cases i <;> fin_cases j <;> simp
+    _ = (1 - t) * ((1 - t) * det (updateRow M 3 ((V₂ α β) 3))) := by
+          rw [det_updateRow_smul]
+    _ = (1 - t)^2 * det (V₂ α β) := by
+          have hV₂_eq : V₂ α β = updateRow M 3 ((V₂ α β) 3) := by
+            unfold M
+            ext i j
+            simp [V₁, V₂, updateRow]
+            fin_cases i <;> fin_cases j <;> simp
+          rw [← hV₂_eq]
+          ring
+
+-------------------------- Step 3 ----------------------------
+
+def V₃ (α β : ℝ) : Matrix (Fin 4) (Fin 4) ℂ :=
+  !![0, x α, 0, (x α)^11;
+     0, y β, 0, (y β)^11;
+     1, 0, (x α)^10, 0;
+     1, 0, (y β)^10, 0]
+
+lemma det_V₂_eq_det_V₃ (α β : ℝ) : det (V₂ α β) = det (V₃ α β) := by
+  rw [V₃]
+  let M := updateRow (V₂ α β) 0 ((V₂ α β) 0 + (-1) • (V₂ α β) 2)
+  calc det (V₂ α β)
+      = det M := by
+          unfold M
+          have h_ne1 : (0 : Fin 4) ≠ (2 : Fin 4) := by decide
+          rw [← det_updateRow_add_smul_self (V₂ α β) h_ne1 (-1)]; simp
+    _ = det (V₃ α β) := by
+          have hV₃ : V₃ α β = updateRow M 1 (M 1 + (-1) • M 3) := by
+            unfold M
+            ext i j
+            simp [V₃, V₂, updateRow]
+            fin_cases i <;> fin_cases j <;> simp
+          have h_ne2 : (1 : Fin 4) ≠ (3 : Fin 4) := by decide
+          rw [hV₃, ← det_updateRow_add_smul_self _ h_ne2 (-1)]; simp
+
+-------------------------- Step 4 ----------------------------
+
+def V₄ (α β : ℝ) : Matrix (Fin 4) (Fin 4) ℂ :=
+  !![x α, (x α)^11, 0, 0;
+     y β, (y β)^11, 0, 0;
+     0, 0, 1, (x α)^10;
+     0, 0, 1, (y β)^10]
+
+lemma det_V₃_eq_det_V₄ (α β : ℝ) : det (V₃ α β) = - det (V₄ α β) := by
+  let σ : Equiv.Perm (Fin 4) := ⟨![1, 3, 0, 2], ![2, 0, 3, 1], by decide, by decide⟩
+  have h_sign : Equiv.Perm.sign σ = -1 := by decide
+  have h_V₄ : V₄ α β = (V₃ α β).submatrix id σ := by
+    ext i j
+    fin_cases i <;> fin_cases j <;> rfl
+  calc det (V₃ α β)
+      = - (-1 * det (V₃ α β)) := by ring
+    _ = - ((Equiv.Perm.sign σ) * det (V₃ α β)) := by rw [h_sign]; simp
+    _ = - det ((V₃ α β).submatrix id σ) := by rw [det_permute']
+    _ = - det (V₄ α β) := by rw [← h_V₄]
+
+-------------------------- Step 5 ----------------------------
+
+def A (α β : ℝ) : Matrix (Fin 2) (Fin 2) ℂ :=
+  !![x α, (x α)^11;
+     y β, (y β)^11]
+
+def B (α β : ℝ) : Matrix (Fin 2) (Fin 2) ℂ :=
+  !![1, (x α)^10;
+     1, (y β)^10]
+
+lemma det_A (α β : ℝ) : det (A α β) = x α * (y β)^11 - y β * (x α)^11 := by
+  simp [A, det_fin_two]; ring
+
+lemma det_B (α β : ℝ) : det (B α β) = (y β)^10 - (x α)^10 := by
+  simp [B, det_fin_two]
+
+-- V₄ 是块对角矩阵，其行列式是两个块的行列式之积
+lemma det_V₄_eq_det_A_mul_det_B (α β : ℝ) :
+  det (V₄ α β) = det (A α β) * det (B α β) := by
+  let blocks : Fin 2 → Matrix (Fin 2) (Fin 2) ℂ := ![A α β, B α β]
+  let e : Fin 4 ≃ Fin 2 × Fin 2 := (finProdFinEquiv (m := 2) (n := 2)).symm
+  have h_eq : V₄ α β = (blockDiagonal blocks).submatrix e e := by
+    ext i j
+    -- 逐一枚举索引并化简
+    fin_cases i <;> fin_cases j
+    all_goals
+      simp [V₄, A, B, blocks, blockDiagonal, Matrix.submatrix, Matrix.of, e]
+      sorry
+  calc det (V₄ α β)
+      = det ((blockDiagonal blocks).submatrix e e) := by rw [h_eq]
+    _ = det (blockDiagonal blocks) := by exact det_submatrix_equiv_self e (blockDiagonal blocks)
+    _ = ∏ k, det (blocks k) := det_blockDiagonal blocks
+    _ = det (blocks 0) * det (blocks 1) := by rw [Fin.prod_univ_two]
+    _ = det (A α β) * det (B α β) := by simp [blocks]
 
 -- 关键定理：det V 的显式公式
 -- det V = -(1-t)^2 * e^(i(α+β)) * (e^(10iβ) - e^(10iα))^2
 lemma detV_formula (α β : ℝ) :
   det (V α β) = -(1 - t)^2 * exp (I * (α + β)) *
                  (exp (I * (10 * β)) - exp (I * (10 * α)))^2 := by
-  -- 这需要通过一系列行列变换来证明
-  -- 1. R₃ ← R₃ - t·R₁, R₄ ← R₄ - t·R₂
-  -- 2. 提取因子 (1-t) 从第3、4行
-  -- 3. R₁ ← R₁ - R₃, R₂ ← R₂ - R₄
-  -- 4. 交换列得到反对角块形式
-  -- 5. 应用块矩阵行列式公式
-  sorry
+  rw [det_V_eq_det_V₁, det_V₁_eq_det_V₂, det_V₂_eq_det_V₃, det_V₃_eq_det_V₄,
+      det_V₄_eq_det_A_mul_det_B, det_A, det_B]
+  have h1 : (x α * y β ^ 11 - y β * x α ^ 11) * (y β ^ 10 - x α ^ 10) =
+            (x α * y β) * (y β ^ 10 - x α ^ 10) ^ 2 := by ring_nf;
+  have h2 : (x α * y β) = exp (I * (α + β)) := by
+    unfold x y
+    ring_nf
+    simp [Complex.exp_add];
+  have h3 : (y β ^ 10 - x α ^ 10) = exp (I * (10 * β)) - exp (I * (10 * α)) := by
+    unfold x y
+    rw [← Complex.exp_nat_mul, ← Complex.exp_nat_mul]
+    ring_nf
+  rw [h1, h2, h3]
+  ring
 
 theorem detV_neq_0 (α β : ℝ)
         (hα : 0 ≤ α) (hαβ : α < β) (hβ : β < 0.2 * π) :
         det (V α β) ≠ 0 := by
-  -- 使用显式公式: det V = -(1-t)^2 * e^(i(α+β)) * (e^(10iβ) - e^(10iα))^2
   rw [detV_formula]
 
-  -- 证明所有因子非零
   have h1 : (1 - t)^2 ≠ 0 := by apply pow_ne_zero 2 one_sub_t_ne_0
   have h2 : exp (I * (α + β)) ≠ 0 := Complex.exp_ne_zero _
   have h3 : (exp (I * (10 * β)) - exp (I * (10 * α)))^2 ≠ 0 := by
@@ -125,7 +319,6 @@ theorem detV_neq_0 (α β : ℝ)
     have : exp (I * (10 * β)) = exp (I * (10 * α)) := sub_eq_zero.mp heq
     exact exp_10_ne α β hα hαβ hβ this
 
-  -- 使用 mul_ne_zero 的变体
   have : (1 - t)^2 * exp (I * (α + β)) * (exp (I * (10 * β)) - exp (I * (10 * α)))^2 ≠ 0 :=
     mul_ne_zero (mul_ne_zero h1 h2) h3
   intro h
