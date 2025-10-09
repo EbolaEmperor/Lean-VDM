@@ -2,7 +2,7 @@ import LeanVDM.GeVDM
 import Mathlib.LinearAlgebra.Matrix.RowCol
 import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
 
-open Finset Matrix BigOperators
+open Finset Matrix BigOperators GeVDMs ClassicalVDMs
 
 def T (n : ℕ) (hn : n > 0) (u : Fin n → ℝ) (k : Fin n) : Matrix (Fin n) (Fin n) ℝ :=
   let i0 : Fin n := ⟨0, hn⟩
@@ -261,9 +261,7 @@ theorem det_GeVDM_to_T0 (n : ℕ) (hn : n ≥ 2) (u : Fin n → ℝ)
     (heN : e iLast = n)
     (i0 : Fin n) (hi0 : i0.val = 0):
   det (GeVDM n u e) = det (T n (by omega : n > 0) u ⟨0, by omega⟩) := by
-  -- 先用 det_column_transform 得到 det (GeVDM n u e) = det (T u (n-2))
   rw [det_column_transform n (by omega) u e he iLast hiLast heN i0 hi0]
-  -- 再用 det_T_to_zero 从 T u (n-2) 降到 T u 0
   exact det_T_to_zero n hn u (n-2) (by omega)
 
 def SimpM (n : ℕ) (hn : n ≥ 2) (u : Fin n → ℝ) :

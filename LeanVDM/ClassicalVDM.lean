@@ -8,6 +8,8 @@ import Mathlib.Data.Fintype.BigOperators
 
 open Matrix BigOperators Finset
 
+namespace ClassicalVDMs
+
 def ClassicalVDM (n : ℕ) (u : Fin n → ℝ) : Matrix (Fin n) (Fin n) ℝ :=
   fun i j => u i ^ (j : ℕ)
 
@@ -67,7 +69,7 @@ lemma reduced_first_row (n : ℕ) (u : Fin (n + 1) → ℝ) :
       omega
     calc u 0 ^ (j : ℕ) - u 0 * u 0 ^ ((j : ℕ) - 1)
         = u 0 * u 0 ^ ((j : ℕ) - 1) - u 0 * u 0 ^ ((j : ℕ) - 1) := by
-            conv_lhs => arg 1; rw [← Nat.sub_add_cancel hj, pow_succ]; ring
+            conv_lhs => arg 1; rw [← Nat.sub_add_cancel hj, pow_succ]; ring_nf
       _ = 0 := sub_self _
 
 /-- ReducedVDM 的其他行可以提取因子 (u_i - u_0) -/
@@ -223,3 +225,5 @@ theorem rank_ClassicalVDM_full (n : ℕ) (u : Fin n → ℝ)
       (A := ClassicalVDM n u)
       (B := (1 : Matrix (Fin n) (Fin n) ℝ))
       hUnit)
+
+end ClassicalVDMs

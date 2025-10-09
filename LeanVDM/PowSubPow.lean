@@ -7,6 +7,8 @@ import Mathlib.Data.Fintype.BigOperators
 
 open Matrix BigOperators Finset
 
+namespace psp_factor_lemmas
+
 lemma sum_diff_helper_1 (x y : ℝ) (n : ℕ) (hn : n ≥ 1) :
   (∑ i ∈ range n, x ^ i * y ^ (n - 1 - i)) =
   (∑ i ∈ range (n-1), x ^ i * y ^ (n - 1 - i)) + x^(n-1) := by
@@ -29,8 +31,8 @@ lemma sum_shift_one (n : ℕ) (hn : n ≥ 1) (u : ℕ → ℝ) :
   ∑ i ∈ range (n-1), u i = ∑ i ∈ Ico 1 n, u (i-1) := by
   apply Finset.sum_bij (fun i _ => i + 1)
   · intro i hi
-    simp only [Finset.mem_range] at hi
     simp [Finset.mem_Ico]
+    simp [Finset.mem_range] at hi
     omega
   · omega
   · intro b hb
@@ -65,9 +67,11 @@ lemma sum_diff_helper_3 (x y : ℝ) (n : ℕ) (hn : n ≥ 1) :
       have : n - i = 1 + (n - 1 - i) := by omega
       rw [this, pow_add, pow_one]; ring
 
+end psp_factor_lemmas
 
-/-- 多项式恒等式：x^n - y^n = (x - y) * Σᵢ x^i * y^(n-1-i) -/
-theorem pow_sub_pow_factor (x y : ℝ) (n : ℕ) (hn : n ≥ 1) :
+open psp_factor_lemmas
+
+theorem psp_factor (x y : ℝ) (n : ℕ) (hn : n ≥ 1) :
   (x - y) * (∑ i ∈ range n, x ^ i * y ^ (n - 1 - i)) = x ^ n - y ^ n := by
   have h1 := sum_diff_helper_1 x y n hn
   have h2 := sum_diff_helper_2 x y n hn

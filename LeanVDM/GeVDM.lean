@@ -1,6 +1,8 @@
 import LeanVDM.ClassicalVDM
 
-open Finset Matrix BigOperators
+open Finset Matrix BigOperators ClassicalVDMs
+
+namespace GeVDMs
 
 def GeVDM (n : ℕ) (u : Fin n → ℝ) (e : Fin n → ℕ) : Matrix (Fin n) (Fin n) ℝ :=
   fun i j => u i ^ (e j)
@@ -11,3 +13,5 @@ theorem GeVDM_eq_ClassicalVDM (n : ℕ) (u : Fin n → ℝ) (e : Fin n → ℕ) 
   simp [GeVDM, ClassicalVDM]
   congr
   apply he
+
+end GeVDMs

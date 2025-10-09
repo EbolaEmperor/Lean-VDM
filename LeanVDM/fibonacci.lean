@@ -1,7 +1,11 @@
-import Mathlib
+import Mathlib.Data.Real.Basic
+import Mathlib.Data.Real.Sqrt
+import Mathlib.Data.Nat.Cast.Basic
+import Mathlib.Data.Fintype.BigOperators
+
 open BigOperators Finset
 
-namespace Fibobacci
+namespace Fibonacci
 
 def fib : ℕ → ℕ
   | 0     => 0
@@ -37,24 +41,23 @@ theorem fib_formula (n : ℕ) :
       _ = (φ^(n+2) - ψ^(n+2)) / √5 := by
         simp only [φ_relation, ψ_relation]; ring
 
-lemma fib_gt_0 (n : ℕ) (hn : n ≥ 1) :
-  fib n > 0 := by
-  induction n with
-  | zero => omega
-  | succ n ih =>
-    cases n with
-    | zero => simp [fib]
-    | succ n' =>
-      rw [fib]
-      have : fib (n' + 1) > 0 := ih (by omega)
-      linarith
-
 theorem fib_incr (n : ℕ) :
   fib n ≤ fib (n + 1) := by
   match n with
   | 0 => simp [fib]
   | 1 => simp [fib]
   | n + 2 =>  exact Nat.le.intro rfl
+
+lemma fib_gt_0 (n : ℕ) (hn : n ≥ 1) :
+  fib n > 0 := by
+  induction n with
+  | zero => omega
+  | succ n ih =>
+    by_cases h : n = 0
+    · rw [h]; simp [fib]
+    · calc fib (n + 1)
+        ≥ fib n := fib_incr n
+      _ > 0 := ih (by omega)
 
 theorem fib_sum_eq_succ_sub_1 (n : ℕ) :
   ∑ i ∈ range n, fib i = (fib (n + 1)) - 1 := by
@@ -213,7 +216,14 @@ theorem fib_gcd (n m : ℕ) :
   · have hmn : m ≥ n := by omega
     rw [Nat.gcd_comm, fib_gcd_n_geq_m m n hmn, Nat.gcd_comm]
 
-example : Nat.gcd (fib 2022) (fib 2025) = 2 := by
+example : Nat.gcd (fib 200000000000022) (fib 200000000000025) = 2 := by
   simp [fib_gcd]; rfl;
 
-end Fibobacci
+example : Even (fib 200000000000000025) := by
+  simp [fib_even_iff_n_mod_3_eq_0];
+
+example : fib 20025 = fib 10011 * fib 10013
+                    + fib 10012 * fib 10014 := by
+  rw [fib_naddm 10013 10012 (by omega)];
+
+end Fibonacci
