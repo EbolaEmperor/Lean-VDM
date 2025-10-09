@@ -1,82 +1,52 @@
 import LeanVDM.GeVDM
-import Mathlib.LinearAlgebra.Matrix.RowCol
-import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
-import Mathlib.Analysis.Real.Pi.Bounds
-import Mathlib.Analysis.Complex.Basic
-import Mathlib.Analysis.Complex.Exponential
-
 open Finset Matrix BigOperators GeVDMs ClassicalVDMs Real Complex
+
+noncomputable section
 
 def n := 4
 def e : Fin n → ℕ := ![0, 1, 10, 11]
 
-noncomputable def u (α β : ℝ) : Fin n → ℂ :=
+def u (α β : ℝ) : Fin n → ℂ :=
   ![Complex.exp (Complex.I * α),
     Complex.exp (Complex.I * β),
     Complex.exp (Complex.I * (α + 0.2 * π)),
     Complex.exp (Complex.I * (β + 0.2 * π))]
 
-noncomputable def V (α β : ℝ) : Matrix (Fin n) (Fin n) ℂ :=
+def V (α β : ℝ) : Matrix (Fin n) (Fin n) ℂ :=
   GeVDM n (u α β) e
 
 -- 辅助定义：x = e^(iα), y = e^(iβ), t = e^(iπ/5)
-noncomputable def x (α : ℝ) : ℂ := exp (I * α)
-noncomputable def y (β : ℝ) : ℂ := exp (I * β)
-noncomputable def t : ℂ := exp (I * π / 5)
+def x (α : ℝ) : ℂ := exp (α * I)
+def y (β : ℝ) : ℂ := exp (β * I)
+def t := exp (0.2 * π * I)
 
--- 关键性质：t = e^(i·0.2π)
-lemma t_eq : t = exp (I * (0.2 * π)) := by
-  simp [t]
-  ring_nf
-
--- 关键引理：1 - t ≠ 0 (因为 e^(iπ/5) ≠ 1)
-lemma one_sub_t_ne_zero : 1 - t ≠ 0 := by
-  simp only [t]
+lemma t_ne_1 : t ≠ 1 := by
   intro h
-  -- 从 1 - e^(iπ/5) = 0 得到 e^(iπ/5) = 1
-  have h_exp_eq : exp (I * (π / 5)) = 1 := by
-    have h1 : 1 - exp (I * ↑π / 5) = 0 := h
-    linarith
-  -- 利用 exp_eq_one_iff: exp z = 1 ↔ ∃ n : ℤ, z = 2πni
-  rw [Complex.exp_eq_one_iff] at h_exp_eq
-  rcases h_exp_eq with ⟨n, hn⟩
-  -- 所以 I * (π / 5) = n * (2π * I)
-  -- 消去 I 得 π / 5 = 2πn，即 1 = 10n
-  have h_pi_ne : (π : ℂ) ≠ 0 := ofReal_ne_zero.mpr Real.pi_pos.ne'
-  have h_I_ne : (I : ℂ) ≠ 0 := Complex.I_ne_zero
+  rw [t] at h;
+  have hn : ∃ n : ℤ, (0.2 * π * I) = n * (2 * π * I) := by
+    exact Complex.exp_eq_one_iff.mp h
+  rcases hn with ⟨n, hn⟩
+  have hC : (n : ℂ) = 0.1 := by
+    calc (n : ℂ)
+       = (n : ℂ) * 2 / 2 := by simp
+     _ = 0.2 / 2 := by
+        have := congrArg (fun z : ℂ => z / (π * I)) hn
+        field_simp at this; simp [this]
+     _ = 0.1 := by ring
+  have hR : (n : ℝ) = 0.1 := by exact ofReal_inj.mp hC
 
-  -- 从等式推导出 1 = 10n
-  have h_eq : (1 : ℂ) = 10 * ↑n := by
-    have eq1 : I * (↑π / 5 : ℂ) = ↑n * (2 * ↑π * I) := hn
-    have eq2 : (↑π / 5 : ℂ) = ↑n * (2 * ↑π) := by
-      field_simp [h_I_ne] at eq1 ⊢
-      linear_combination eq1
-    field_simp [h_pi_ne] at eq2 ⊢
-    linear_combination eq2
-
-  -- 取实部得到实数等式 1 = 10n
-  have h_real : (1 : ℝ) = 10 * (n : ℝ) := by
-    have := congrArg Complex.re h_eq
-    simp at this
-    exact this
-
-  -- 但 1 = 10n 对整数 n 不可能（因为 |10n| ≥ 10 或 n = 0 时 10n = 0 ≠ 1）
-  by_cases hn : n = 0
-  · rw [hn] at h_real; norm_num at h_real
-  · have : |10 * (n : ℝ)| ≥ 10 := by
-      have : |(n : ℝ)| ≥ 1 := by
-        have := Int.one_le_abs hn
-        exact mod_cast this
-      calc |10 * (n : ℝ)| = 10 * |(n : ℝ)| := by rw [abs_mul]; norm_num
-        _ ≥ 10 * 1 := by linarith
-        _ = 10 := by norm_num
-    rw [← h_real] at this
+  by_cases hn0 : n = 0
+  · rw [hn0] at hR; norm_num at hR;
+  · have : |(0.1 : ℝ)| ≥ 1 := by
+      calc |(0.1 : ℝ)|
+         = |(n : ℝ)| := by congr; simp [hR];
+       _ = |n| := by norm_num
+       _ ≥ 1 := by exact Int.cast_one_le_of_pos (Int.one_le_abs hn0)
     norm_num at this
 
--- exp 的性质
-lemma exp_ne_zero (z : ℂ) : exp z ≠ 0 := Complex.exp_ne_zero z
+lemma one_sub_t_ne_0 : 1 - t ≠ 0 := by
+  apply sub_ne_zero.mpr (ne_comm.mp t_ne_1)
 
--- 关键引理：在给定条件下 e^(10iβ) ≠ e^(10iα)
 lemma exp_10_ne (α β : ℝ) (hα : 0 ≤ α) (hαβ : α < β) (hβ : β < 0.2 * π) :
   exp (I * (10 * β)) ≠ exp (I * (10 * α)) := by
   intro h
@@ -147,7 +117,7 @@ theorem detV_neq_0 (α β : ℝ)
   rw [detV_formula]
 
   -- 证明所有因子非零
-  have h1 : (1 - t)^2 ≠ 0 := pow_ne_zero 2 one_sub_t_ne_zero
+  have h1 : (1 - t)^2 ≠ 0 := by apply pow_ne_zero 2 one_sub_t_ne_0
   have h2 : exp (I * (α + β)) ≠ 0 := Complex.exp_ne_zero _
   have h3 : (exp (I * (10 * β)) - exp (I * (10 * α)))^2 ≠ 0 := by
     apply pow_ne_zero

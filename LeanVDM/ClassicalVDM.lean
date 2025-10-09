@@ -1,11 +1,4 @@
-import Mathlib.Data.Real.Basic
-import Mathlib.Data.Nat.Cast.Basic
-import Mathlib.LinearAlgebra.Matrix.Basis
-import Mathlib.LinearAlgebra.Matrix.rank
-import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
-import Mathlib.Algebra.BigOperators.Finprod
-import Mathlib.Data.Fintype.BigOperators
-
+import LeanVDM.Basic
 open Matrix BigOperators Finset
 
 namespace ClassicalVDMs
