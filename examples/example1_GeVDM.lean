@@ -4,6 +4,8 @@ import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
 
 open Finset Matrix BigOperators GeVDMs ClassicalVDMs
 
+namespace LeanVDM_example1
+
 def T (n : ℕ) (hn : n > 0) (u : Fin n → ℝ) (k : Fin n) : Matrix (Fin n) (Fin n) ℝ :=
   let i0 : Fin n := ⟨0, hn⟩
   fun i j =>
@@ -590,3 +592,5 @@ theorem det_GeVDM_example1 (n : ℕ) (hn : n ≥ 1) (u : Fin n → ℝ)
 
     -- 现在目标是代数恒等式，用 ring 即可
     ring
+
+end LeanVDM_example1

@@ -16,9 +16,8 @@ package "Lean_VDM" where
 
 require "leanprover-community" / "mathlib"
 
-lean_lib «LeanVDM» where
-  -- add library configuration options here
+lean_lib «examples»
 
 @[default_target]
-lean_lib «todo/example2_GeVDM» where
-  -- add any library configuration options here
+lean_lib «LeanVDM» where
+  -- add library configuration options here

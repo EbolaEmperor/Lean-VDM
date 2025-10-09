@@ -3,6 +3,8 @@ open Finset Matrix BigOperators GeVDMs ClassicalVDMs Real Complex
 
 noncomputable section
 
+namespace LeanVDM_example2
+
 def n := 4
 def e : Fin n → ℕ := ![0, 1, 10, 11]
 
@@ -267,27 +269,17 @@ lemma det_A (α β : ℝ) : det (A α β) = x α * (y β)^11 - y β * (x α)^11 
 lemma det_B (α β : ℝ) : det (B α β) = (y β)^10 - (x α)^10 := by
   simp [B, det_fin_two]
 
--- V₄ 是块对角矩阵，其行列式是两个块的行列式之积
 lemma det_V₄_eq_det_A_mul_det_B (α β : ℝ) :
   det (V₄ α β) = det (A α β) * det (B α β) := by
-  let blocks : Fin 2 → Matrix (Fin 2) (Fin 2) ℂ := ![A α β, B α β]
-  let e : Fin 4 ≃ Fin 2 × Fin 2 := (finProdFinEquiv (m := 2) (n := 2)).symm
-  have h_eq : V₄ α β = (blockDiagonal blocks).submatrix e e := by
+  let e := (finSumFinEquiv (m := 2) (n := 2)).symm
+  have h_eq : V₄ α β = submatrix (fromBlocks (A α β) 0 0 (B α β)) e e := by
     ext i j
-    -- 逐一枚举索引并化简
-    fin_cases i <;> fin_cases j
-    all_goals
-      simp [V₄, A, B, blocks, blockDiagonal, Matrix.submatrix, Matrix.of, e]
-      sorry
-  calc det (V₄ α β)
-      = det ((blockDiagonal blocks).submatrix e e) := by rw [h_eq]
-    _ = det (blockDiagonal blocks) := by exact det_submatrix_equiv_self e (blockDiagonal blocks)
-    _ = ∏ k, det (blocks k) := det_blockDiagonal blocks
-    _ = det (blocks 0) * det (blocks 1) := by rw [Fin.prod_univ_two]
-    _ = det (A α β) * det (B α β) := by simp [blocks]
+    simp [submatrix, fromBlocks, e, finSumFinEquiv]
+    fin_cases i <;> fin_cases j <;> rfl
+  rw [h_eq, det_submatrix_equiv_self, det_fromBlocks_zero₂₁]
 
--- 关键定理：det V 的显式公式
--- det V = -(1-t)^2 * e^(i(α+β)) * (e^(10iβ) - e^(10iα))^2
+----------------------- Final Steps  -------------------------
+
 lemma detV_formula (α β : ℝ) :
   det (V α β) = -(1 - t)^2 * exp (I * (α + β)) *
                  (exp (I * (10 * β)) - exp (I * (10 * α)))^2 := by
@@ -296,13 +288,9 @@ lemma detV_formula (α β : ℝ) :
   have h1 : (x α * y β ^ 11 - y β * x α ^ 11) * (y β ^ 10 - x α ^ 10) =
             (x α * y β) * (y β ^ 10 - x α ^ 10) ^ 2 := by ring_nf;
   have h2 : (x α * y β) = exp (I * (α + β)) := by
-    unfold x y
-    ring_nf
-    simp [Complex.exp_add];
+    unfold x y; ring_nf; simp [Complex.exp_add];
   have h3 : (y β ^ 10 - x α ^ 10) = exp (I * (10 * β)) - exp (I * (10 * α)) := by
-    unfold x y
-    rw [← Complex.exp_nat_mul, ← Complex.exp_nat_mul]
-    ring_nf
+    unfold x y; rw [← Complex.exp_nat_mul, ← Complex.exp_nat_mul]; ring_nf
   rw [h1, h2, h3]
   ring
 
@@ -327,3 +315,5 @@ theorem detV_neq_0 (α β : ℝ)
          -((1 - t)^2 * exp (I * (α + β)) * (exp (I * (10 * β)) - exp (I * (10 * α)))^2) := by ring
   rw [this] at h
   exact neg_eq_zero.mp h
+
+end LeanVDM_example2
