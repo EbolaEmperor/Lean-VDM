@@ -86,68 +86,12 @@ lemma one_sub_t_ne_0 : 1 - t ≠ 0 := by
   apply sub_ne_zero.mpr (ne_comm.mp t_ne_1)
 
 lemma exp_10_ne (α β : ℝ) (hα : 0 ≤ α) (hαβ : α < β) (hβ : β < 0.2 * π) :
-  exp (I * (10 * β)) ≠ exp (I * (10 * α)) := by
+  exp (↑(10 * β) * I) ≠ exp (↑(10 * α) * I) := by
   intro h
-  -- 由 exp 的周期性，exp(z1) = exp(z2) ↔ ∃ n : ℤ, z1 - z2 = 2πni
-  have h_period : ∃ n : ℤ, I * (10 * β) - I * (10 * α) = n * (2 * π * I) := by
-    rw [Complex.exp_eq_exp_iff_exists_int] at h
-    rcases h with ⟨n, hn⟩
-    use n
-    linear_combination hn
-
-  rcases h_period with ⟨n, hn⟩
-
-  -- 从 I * 10(β - α) = n * 2πI 得到 10(β - α) = 2πn
-  have h_eq : 10 * (β - α) = 2 * π * (n : ℝ) := by
-    have h_I_ne : (I : ℂ) ≠ 0 := Complex.I_ne_zero
-    have h_calc : I * (10 * (β : ℂ) - 10 * (α : ℂ)) = (n : ℂ) * (2 * π * I) := by
-      linear_combination hn
-    have h_complex : (10 * (β - α) : ℂ) = (n : ℂ) * (2 * π) := by
-      field_simp [h_I_ne] at h_calc ⊢
-      linear_combination h_calc
-    have := congrArg Complex.re h_complex
-    simp at this
-    ring_nf at this ⊢
-    exact this
-
-  -- 但 0 < 10(β - α) < 2π
-  have h_range : 0 < 10 * (β - α) ∧ 10 * (β - α) < 2 * π := by
-    constructor
-    · linarith
-    · calc 10 * (β - α)
-          < 10 * (0.2 * π) := by linarith
-        _ = 2 * π := by ring
-
-  -- 如果 n = 0，则 β = α，矛盾
-  by_cases hn_zero : n = 0
-  · rw [hn_zero] at h_eq
-    simp at h_eq
-    linarith
-
-  -- 如果 n ≠ 0，则 |2πn| ≥ 2π，但 10(β-α) < 2π，矛盾
-  · have h_abs_ge : |2 * π * (n : ℝ)| ≥ 2 * π := by
-      have h_n_abs : |(n : ℝ)| ≥ 1 := by
-        have := Int.one_le_abs hn_zero
-        exact mod_cast this
-      calc |2 * π * (n : ℝ)|
-          = 2 * π * |(n : ℝ)| := by
-            rw [abs_mul]
-            congr 1
-            rw [abs_of_pos]
-            linarith [Real.pi_pos]
-        _ ≥ 2 * π * 1 := by
-            apply mul_le_mul_of_nonneg_left h_n_abs
-            linarith [Real.pi_pos]
-        _ = 2 * π := by ring
-
-    -- 但 10(β-α) = 2πn 且 0 < 10(β-α) < 2π
-    -- 由 h_eq : 10(β-α) = 2πn 和 h_range.1 知 2πn > 0
-    -- 所以 |2πn| = 2πn = 10(β-α) < 2π，与 |2πn| ≥ 2π 矛盾
-    have : 10 * (β - α) < 2 * π := h_range.2
-    have : 2 * π * (n : ℝ) < 2 * π := by rw [← h_eq]; exact this
-    have h_pos : 2 * π * (n : ℝ) > 0 := by rw [← h_eq]; exact h_range.1
-    have : |2 * π * (n : ℝ)| = 2 * π * (n : ℝ) := abs_of_pos h_pos
-    linarith
+  have hαβ1 : β = α := by
+    rw [cexp_eq_cexp_iff_eq (10 * β) (10 * α)] at h
+    simp at h; rw [h]; linarith; linarith; linarith; linarith
+  linarith
 
 -------------------------- Step 1 ----------------------------
 
@@ -281,18 +225,18 @@ lemma det_V₄_eq_det_A_mul_det_B (α β : ℝ) :
 ----------------------- Final Steps  -------------------------
 
 lemma detV_formula (α β : ℝ) :
-  det (V α β) = -(1 - t)^2 * exp (I * (α + β)) *
-                 (exp (I * (10 * β)) - exp (I * (10 * α)))^2 := by
+  det (V α β) = -(1 - t)^2 * exp ((α + β) * I) *
+                 (exp (↑(10 * β) * I) - exp (↑(10 * α) * I)) ^ 2 := by
   rw [det_V_eq_det_V₁, det_V₁_eq_det_V₂, det_V₂_eq_det_V₃, det_V₃_eq_det_V₄,
       det_V₄_eq_det_A_mul_det_B, det_A, det_B]
   have h1 : (x α * y β ^ 11 - y β * x α ^ 11) * (y β ^ 10 - x α ^ 10) =
             (x α * y β) * (y β ^ 10 - x α ^ 10) ^ 2 := by ring_nf;
-  have h2 : (x α * y β) = exp (I * (α + β)) := by
+  have h2 : (x α * y β) = exp ((α + β) * I) := by
     unfold x y; ring_nf; simp [Complex.exp_add];
-  have h3 : (y β ^ 10 - x α ^ 10) = exp (I * (10 * β)) - exp (I * (10 * α)) := by
+  have h3 : (y β ^ 10 - x α ^ 10) = exp ((10 * β) * I) - exp ((10 * α) * I) := by
     unfold x y; rw [← Complex.exp_nat_mul, ← Complex.exp_nat_mul]; ring_nf
   rw [h1, h2, h3]
-  ring
+  norm_cast; ring
 
 theorem detV_neq_0 (α β : ℝ)
         (hα : 0 ≤ α) (hαβ : α < β) (hβ : β < 0.2 * π) :
@@ -300,19 +244,19 @@ theorem detV_neq_0 (α β : ℝ)
   rw [detV_formula]
 
   have h1 : (1 - t)^2 ≠ 0 := by apply pow_ne_zero 2 one_sub_t_ne_0
-  have h2 : exp (I * (α + β)) ≠ 0 := Complex.exp_ne_zero _
-  have h3 : (exp (I * (10 * β)) - exp (I * (10 * α)))^2 ≠ 0 := by
+  have h2 : exp ((α + β) * I) ≠ 0 := Complex.exp_ne_zero _
+  have h3 : (exp (↑(10 * β) * I) - exp (↑(10 * α) * I))^2 ≠ 0 := by
     apply pow_ne_zero
     intro heq
-    have : exp (I * (10 * β)) = exp (I * (10 * α)) := sub_eq_zero.mp heq
+    have : exp (↑(10 * β) * I) = exp (↑(10 * α) * I) := sub_eq_zero.mp heq
     exact exp_10_ne α β hα hαβ hβ this
 
-  have : (1 - t)^2 * exp (I * (α + β)) * (exp (I * (10 * β)) - exp (I * (10 * α)))^2 ≠ 0 :=
+  have : (1 - t)^2 * exp ((α + β) * I) * (exp (↑(10 * β) * I) - exp (↑(10 * α) * I))^2 ≠ 0 :=
     mul_ne_zero (mul_ne_zero h1 h2) h3
   intro h
   apply this
-  have : -(1 - t)^2 * exp (I * (α + β)) * (exp (I * (10 * β)) - exp (I * (10 * α)))^2 =
-         -((1 - t)^2 * exp (I * (α + β)) * (exp (I * (10 * β)) - exp (I * (10 * α)))^2) := by ring
+  have : -(1 - t)^2 * exp ((α + β) * I) * (exp (↑(10 * β) * I) - exp (↑(10 * α) * I))^2 =
+         -((1 - t)^2 * exp ((α + β) * I) * (exp (↑(10 * β) * I) - exp (↑(10 * α) * I))^2) := by ring
   rw [this] at h
   exact neg_eq_zero.mp h
 
