@@ -18,6 +18,8 @@ require "leanprover-community" / "mathlib"
 
 lean_lib «examples»
 
+lean_lib «MIL»
+
 @[default_target]
 lean_lib «LeanVDM» where
   -- add library configuration options here
