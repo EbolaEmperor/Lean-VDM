@@ -5,25 +5,22 @@ noncomputable section
 
 namespace LeanVDM_example4
 
+/-! ## 基础定义 -/
+
 def n := 6
 def e : Fin n → ℕ := ![0, 1, 2, 10, 11, 12]
 
-def u (α β γ : ℝ) : Fin n → ℂ :=
-  ![exp (I * α),
-    exp (I * β),
-    exp (I * γ),
-    exp (I * (α + 0.2 * π)),
-    exp (I * (β + 0.2 * π)),
-    exp (I * (γ + 0.2 * π))]
+def u (α β γ : ℝ) : Fin n → ℝ :=
+  ![α, β, γ, α + 0.2 * π, β + 0.2 * π, γ + 0.2 * π]
 
 def V (α β γ : ℝ) : Matrix (Fin n) (Fin n) ℂ :=
-  GeVDM n (u α β γ) e
+  FourierVDM n (u α β γ) e
 
 -- 辅助定义：x = e^(iα), y = e^(iβ), z = e^(iγ), t = e^(iπ/5)
 def x (α : ℝ) : ℂ := exp (α * I)
 def y (β : ℝ) : ℂ := exp (β * I)
 def z (γ : ℝ) : ℂ := exp (γ * I)
-def t := exp (0.2 * π * I)
+def t : ℂ := exp (0.2 * π * I)
 
 -- t 的幂次性质
 lemma t_pow_10 : t^10 = 1 := sorry
@@ -32,11 +29,13 @@ lemma t_pow_11 : t^11 = t := sorry
 
 lemma t_pow_12 : t^12 = t^2 := sorry
 
--- 说明 u 向量的结构：u = [x, y, z, t*x, t*y, t*z]
-lemma u_structure (α β γ : ℝ) :
-  u α β γ = ![x α, y β, z γ, t * x α, t * y β, t * z γ] := sorry
+lemma one_minus_t_ne_zero : (1 : ℂ) - t ≠ 0 := sorry
 
--- V 矩阵的初始形式
+lemma one_plus_t_ne_zero : (1 : ℂ) + t ≠ 0 := sorry
+
+lemma neg_t_ne_zero : -t ≠ 0 := sorry
+
+-- V 矩阵的初始形式（按行：x, y, z, tx, ty, tz；按列：0, 1, 2, 10, 11, 12）
 def V₀ (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
   !![1,  x α,     (x α)^2,      (x α)^10,  (x α)^11,     (x α)^12;
      1,  y β,     (y β)^2,      (y β)^10,  (y β)^11,     (y β)^12;
@@ -45,228 +44,268 @@ def V₀ (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
      1,  t*y β,   t^2*(y β)^2,  (y β)^10,  t*(y β)^11,   t^2*(y β)^12;
      1,  t*z γ,   t^2*(z γ)^2,  (z γ)^10,  t*(z γ)^11,   t^2*(z γ)^12]
 
--- V 矩阵的显式表达
-lemma V_explicit (α β γ : ℝ) : V α β γ = V₀ α β γ := sorry
+lemma V_eq_V₀ (α β γ : ℝ) : V α β γ = V₀ α β γ := sorry
 
--- Vandermonde/DFT 变换矩阵 F（2x2）
--- 用于处理两个频率：1 和 t
-def F : Matrix (Fin 2) (Fin 2) ℂ :=
-  !![1,  1;
-     1,  t]
 
--- F 的行列式非零
-lemma det_F : det F = t - 1 := sorry
+/-! ## 第一步：行变换制造结构化零元 -/
 
-lemma t_ne_1 : t ≠ 1 := sorry
+section RowTransformation
 
-lemma det_F_ne_0 : det F ≠ 0 := sorry
+/-- 对每对行 (ζ, tζ) 做行变换：R_{tζ} ← (R_{tζ} - t·R_ζ) / (1-t) -/
+def row_transform_step1 (M : Matrix (Fin 6) (Fin 6) ℂ) : Matrix (Fin 6) (Fin 6) ℂ :=
+  fun i j =>
+    match i with
+    | 0 => M 0 j  -- x 行不变
+    | 1 => M 1 j  -- y 行不变
+    | 2 => M 2 j  -- z 行不变
+    | 3 => (M 3 j - t * M 0 j) / (1 - t)  -- tx 行变换
+    | 4 => (M 4 j - t * M 1 j) / (1 - t)  -- ty 行变换
+    | 5 => (M 5 j - t * M 2 j) / (1 - t)  -- tz 行变换
 
--------------------------- Step 1: 行重排 ----------------------------
-
--- 行置换：将 V₀ 的行从 [x, y, z, tx, ty, tz] 重排为 [x, tx, y, ty, z, tz]
--- 即行索引从 [0,1,2,3,4,5] 重排为 [0,3,1,4,2,5]
-def σ_row : Equiv.Perm (Fin 6) :=
-  ⟨![0, 3, 1, 4, 2, 5], ![0, 2, 4, 1, 3, 5], by decide, by decide⟩
-
--- 行重排后的矩阵：(x,tx), (y,ty), (z,tz) 配对
-def V₀_perm (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
+/-- V_intermediate：第一步行变换后的中间矩阵（按列：0, 1, 2, 10, 11, 12）
+    顶三行（ζ=x,y,z）：[1, ζ, ζ², ζ¹⁰, ζ¹¹, ζ¹²]
+    底三行（tζ变换后）：[1, 0, -tζ², ζ¹⁰, 0, -tζ¹²] -/
+def V_intermediate_explicit (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
   !![1,  x α,     (x α)^2,      (x α)^10,  (x α)^11,     (x α)^12;
-     1,  t*x α,   t^2*(x α)^2,  (x α)^10,  t*(x α)^11,   t^2*(x α)^12;
      1,  y β,     (y β)^2,      (y β)^10,  (y β)^11,     (y β)^12;
-     1,  t*y β,   t^2*(y β)^2,  (y β)^10,  t*(y β)^11,   t^2*(y β)^12;
      1,  z γ,     (z γ)^2,      (z γ)^10,  (z γ)^11,     (z γ)^12;
-     1,  t*z γ,   t^2*(z γ)^2,  (z γ)^10,  t*(z γ)^11,   t^2*(z γ)^12]
+     1,  0,       -t*(x α)^2,   (x α)^10,  0,            -t*(x α)^12;
+     1,  0,       -t*(y β)^2,   (y β)^10,  0,            -t*(y β)^12;
+     1,  0,       -t*(z γ)^2,   (z γ)^10,  0,            -t*(z γ)^12]
 
--- V₀_perm 就是 V₀ 的行置换
-lemma V₀_perm_eq_row_perm (α β γ : ℝ) :
-  V₀_perm α β γ = (V₀ α β γ).submatrix σ_row id := sorry
+/-- 通过第一步行变换定义的中间矩阵 -/
+def V_intermediate (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
+  row_transform_step1 (V₀ α β γ)
 
--- 行置换不改变行列式的绝对值
-lemma sign_σ_row : Equiv.Perm.sign σ_row = 1 := sorry
+/-- V_intermediate 的变换定义等价于显式定义 -/
+lemma V_intermediate_eq_explicit (α β γ : ℝ) :
+    V_intermediate α β γ = V_intermediate_explicit α β γ := sorry
 
-lemma det_V₀_eq_det_V₀_perm (α β γ : ℝ) :
-  det (V₀ α β γ) = det (V₀_perm α β γ) := sorry
+/-- 再对每对行做：R_ζ ← R_ζ - R_{tζ} -/
+def row_transform_step2 (M : Matrix (Fin 6) (Fin 6) ℂ) : Matrix (Fin 6) (Fin 6) ℂ :=
+  fun i j =>
+    match i with
+    | 0 => M 0 j - M 3 j  -- x 行减去 tx 行
+    | 1 => M 1 j - M 4 j  -- y 行减去 ty 行
+    | 2 => M 2 j - M 5 j  -- z 行减去 tz 行
+    | 3 => M 3 j  -- tx 行不变
+    | 4 => M 4 j  -- ty 行不变
+    | 5 => M 5 j  -- tz 行不变
 
--------------------------- Step 2: 应用分块 Vandermonde 变换 ----------------------------
+/-- V_sharp 的显式形式（按列：0, 1, 2, 10, 11, 12）
+    顶三行（ζ=x,y,z）：[0, ζ, (1+t)ζ², 0, ζ¹¹, (1+t)ζ¹²]
+    底三行（tζ变换后）：[1, 0, -tζ², ζ¹⁰, 0, -tζ¹²] -/
+def V_sharp_explicit (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
+  !![0,      x α,     (1+t)*(x α)^2,   0,         (x α)^11,  (1+t)*(x α)^12;
+     0,      y β,     (1+t)*(y β)^2,   0,         (y β)^11,  (1+t)*(y β)^12;
+     0,      z γ,     (1+t)*(z γ)^2,   0,         (z γ)^11,  (1+t)*(z γ)^12;
+     1,      0,       -t*(x α)^2,      (x α)^10,  0,         -t*(x α)^12;
+     1,      0,       -t*(y β)^2,      (y β)^10,  0,         -t*(y β)^12;
+     1,      0,       -t*(z γ)^2,      (z γ)^10,  0,         -t*(z γ)^12]
 
--- 构造分块对角矩阵 diag(F⁻¹, F⁻¹, F⁻¹)
--- 这里我们用等价关系将 Fin 2 ⊕ Fin 2 ⊕ Fin 2 转换为 Fin 6
-def blockDiagF_inv : Matrix (Fin 6) (Fin 6) ℂ :=
-  let e := ((Equiv.sumCongr (finSumFinEquiv (m := 2) (n := 2)) (Equiv.refl (Fin 2))).trans
-            (finSumFinEquiv (m := 4) (n := 2))).symm
-  submatrix (fromBlocks (fromBlocks F⁻¹ 0 0 F⁻¹) 0 0 F⁻¹) e e
+/-- 通过行变换定义的 V_sharp -/
+def V_sharp (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
+  row_transform_step2 (row_transform_step1 (V₀ α β γ))
 
--- 应用变换后，行按照同余类重新组织
--- 行对 0-1：F⁻¹ 作用于 x, tx
--- 行对 2-3：F⁻¹ 作用于 y, ty
--- 行对 4-5：F⁻¹ 作用于 z, tz
-def V₁ (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
-  blockDiagF_inv * V₀_perm α β γ
+/-- V_sharp 通过 V_intermediate 和第二步变换得到 -/
+lemma V_sharp_eq_step2_of_intermediate (α β γ : ℝ) :
+    V_sharp α β γ = row_transform_step2 (V_intermediate α β γ) := by
+  simp [V_sharp, V_intermediate]
 
--- V₁ 的显式形式：对每对行应用 F⁻¹ = (1/(t-1)) × [[t, -1], [-1, 1]]
--- 计算方法：V₁ 可以分块为 3×3 个 2×2 块，每块 V₁[i,j] = F⁻¹ × V₀_perm[i,j]
--- 例如 V₁[0,1]（行0-1，列2-3）：
---   F⁻¹ × [[(x α)^2, (x α)^10], [t^2*(x α)^2, (x α)^10]]
---   = (1/(t-1)) × [[t*(x α)^2 - t^2*(x α)^2, t*(x α)^10 - (x α)^10],
---                  [-(x α)^2 + t^2*(x α)^2, -(x α)^10 + (x α)^10]]
---   = [[-t*(x α)^2, (x α)^10], [(t+1)*(x α)^2, 0]]
-lemma V₁_explicit (α β γ : ℝ) : V₁ α β γ =
-  !![1,  0,      -t*(x α)^2,         (x α)^10,  0,              -t*(x α)^12;
-     0,  x α,    (t+1)*(x α)^2,      0,         (x α)^11,       (t+1)*(x α)^12;
-     1,  0,      -t*(y β)^2,         (y β)^10,  0,              -t*(y β)^12;
-     0,  y β,    (t+1)*(y β)^2,      0,         (y β)^11,       (t+1)*(y β)^12;
-     1,  0,      -t*(z γ)^2,         (z γ)^10,  0,              -t*(z γ)^12;
-     0,  z γ,    (t+1)*(z γ)^2,      0,         (z γ)^11,       (t+1)*(z γ)^12] := sorry
+/-- 完整的变换链条：V₀ → V_intermediate → V_sharp -/
+lemma row_transform_chain (α β γ : ℝ) :
+    V_intermediate α β γ = row_transform_step1 (V₀ α β γ) ∧
+    V_sharp α β γ = row_transform_step2 (V_intermediate α β γ) ∧
+    V_sharp α β γ = row_transform_step2 (row_transform_step1 (V₀ α β γ)) := by
+  constructor
+  · rfl
+  constructor
+  · exact V_sharp_eq_step2_of_intermediate α β γ
+  · rfl
 
--- 行列式关系
-lemma det_V₀_perm_eq_det_V₁ (α β γ : ℝ) :
-  det (V₀_perm α β γ) = det F ^ 3 * det (V₁ α β γ) := sorry
+/-- V_sharp 的变换定义等价于显式定义 -/
+lemma V_sharp_eq_explicit (α β γ : ℝ) : V_sharp α β γ = V_sharp_explicit α β γ := sorry
 
-lemma det_V_eq_det_V₁ (α β γ : ℝ) : det (V α β γ) = det F ^ 3 * det (V₁ α β γ) := sorry
+/-- 按列重排：(1,11)|(0,10)|(2,12)，使得块结构更清晰 -/
+def col_permutation : Fin 6 → Fin 6
+  | 0 => 1   -- 第0列 → 指数1
+  | 1 => 4   -- 第1列 → 指数11
+  | 2 => 0   -- 第2列 → 指数0
+  | 3 => 3   -- 第3列 → 指数10
+  | 4 => 2   -- 第4列 → 指数2
+  | 5 => 5   -- 第5列 → 指数12
 
--------------------------- Step 3: 列操作，消去第 2 列和第 5 列 ----------------------------
+/-- V_sharp_reordered 的显式形式（按列重排后：1, 11, 0, 10, 2, 12）
+    顶三行（ζ=x,y,z）：[ζ, ζ¹¹, 0, 0, (1+t)ζ², (1+t)ζ¹²]
+    底三行（tζ变换后）：[0, 0, 1, ζ¹⁰, -tζ², -tζ¹²] -/
+def V_sharp_reordered_explicit (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
+  !![x α,     (x α)^11,  0,  0,         (1+t)*(x α)^2,   (1+t)*(x α)^12;
+     y β,     (y β)^11,  0,  0,         (1+t)*(y β)^2,   (1+t)*(y β)^12;
+     z γ,     (z γ)^11,  0,  0,         (1+t)*(z γ)^2,   (1+t)*(z γ)^12;
+     0,       0,         1,  (x α)^10,  -t*(x α)^2,      -t*(x α)^12;
+     0,       0,         1,  (y β)^10,  -t*(y β)^2,      -t*(y β)^12;
+     0,       0,         1,  (z γ)^10,  -t*(z γ)^2,      -t*(z γ)^12]
 
--- 观察 V₁：第 1 列和第 4 列在 V₁ 的偶数行有非零元素 (x α, y β, z γ)
--- 我们可以用第 1 列和第 4 列来消去其他列的某些元素
+/-- 通过列重排定义的 V_sharp_reordered -/
+def V_sharp_reordered (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
+  fun i j => V_sharp α β γ i (col_permutation j)
 
--- 列操作：第 2 列 += t × 第 1 列（这样可以消去偶数行）
--- 列操作：第 5 列 += t × 第 4 列
--- 实现：构造新矩阵，每列根据列索引决定是否修改
-def V₂ (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
-  Matrix.of fun i j =>
+/-- V_sharp_reordered 的变换定义等价于显式定义 -/
+lemma V_sharp_reordered_eq_explicit (α β γ : ℝ) :
+    V_sharp_reordered α β γ = V_sharp_reordered_explicit α β γ := by
+  ext i j
+  simp [V_sharp_reordered, V_sharp_reordered_explicit, V_sharp_eq_explicit, V_sharp_explicit]
+  fin_cases i <;> fin_cases j <;> simp [col_permutation]
+
+/-- V_sharp 经过行变换后的结构：
+    顶三行 (ζ=x,y,z): [ζ, ζ¹¹, 0, 0, (1+t)ζ², (1+t)ζ¹²]
+    底三行 (tζ变换后): [0, 0, 1, ζ¹⁰, -tζ², -tζ¹²] -/
+lemma V_sharp_structure (α β γ : ℝ) (hα : 0 ≤ α) (hβ : α < β) (hγ : β < γ) (hπ : γ < π / 5) :
+    -- 顶三行在列 (0,10) 处为0，底三行在列 (1,11) 处为0
+    (∀ i : Fin 3, V_sharp α β γ ⟨i, by omega⟩ 0 = 0 ∧ V_sharp α β γ ⟨i, by omega⟩ 3 = 0) ∧
+    (∀ i : Fin 3,
+      V_sharp α β γ ⟨i + 3, by omega⟩ 1 = 0 ∧ V_sharp α β γ ⟨i + 3, by omega⟩ 4 = 0) := sorry
+
+lemma det_V_equals_det_V_sharp (α β γ : ℝ) :
+    det (V α β γ) = (1 - t)^3 * det (V_sharp α β γ) := sorry
+
+end RowTransformation
+
+
+/-! ## 第二步：拉普拉斯展开 -/
+
+section LaplaceExpansion
+
+/-- 底三行、列 {0,10,2} 的子矩阵 -/
+def Δ_bot_0_10_2 (α β γ : ℝ) : Matrix (Fin 3) (Fin 3) ℂ :=
+  fun i j =>
+    let row : Fin 6 := ⟨(i : ℕ) + 3, by omega⟩  -- 底三行：行 3,4,5
     match j with
-    | 0 => (V₁ α β γ) i 0                    -- 第 0 列不变
-    | 1 => (V₁ α β γ) i 1                    -- 第 1 列不变
-    | 2 => (V₁ α β γ) i 2 + t * (V₁ α β γ) i 1  -- 第 2 列 += t × 第 1 列
-    | 3 => (V₁ α β γ) i 3                    -- 第 3 列不变
-    | 4 => (V₁ α β γ) i 4                    -- 第 4 列不变
-    | 5 => (V₁ α β γ) i 5 + t * (V₁ α β γ) i 4  -- 第 5 列 += t × 第 4 列
+    | 0 => V_sharp α β γ row 0   -- 列 0
+    | 1 => V_sharp α β γ row 3   -- 列 10
+    | 2 => V_sharp α β γ row 2   -- 列 2
 
--- V₂ 的显式形式：第 2 列和第 5 列的偶数行被消成 0
-lemma V₂_explicit (α β γ : ℝ) : V₂ α β γ =
-  !![1,  0,      0,              (x α)^10,  0,              0;
-     0,  x α,    (t+1)*(x α)^2,  0,         (x α)^11,       (t+1)*(x α)^12;
-     1,  0,      0,              (y β)^10,  0,              0;
-     0,  y β,    (t+1)*(y β)^2,  0,         (y β)^11,       (t+1)*(y β)^12;
-     1,  0,      0,              (z γ)^10,  0,              0;
-     0,  z γ,    (t+1)*(z γ)^2,  0,         (z γ)^11,       (t+1)*(z γ)^12] := sorry
+/-- 底三行、列 {0,10,12} 的子矩阵 -/
+def Δ_bot_0_10_12 (α β γ : ℝ) : Matrix (Fin 3) (Fin 3) ℂ :=
+  fun i j =>
+    let row : Fin 6 := ⟨(i : ℕ) + 3, by omega⟩
+    match j with
+    | 0 => V_sharp α β γ row 0   -- 列 0
+    | 1 => V_sharp α β γ row 3   -- 列 10
+    | 2 => V_sharp α β γ row 5   -- 列 12
 
--- 列操作不改变行列式
-lemma det_V₁_eq_det_V₂ (α β γ : ℝ) : det (V₁ α β γ) = det (V₂ α β γ) := sorry
+/-- 顶三行、列 {1,11,12} 的子矩阵 -/
+def Δ_top_1_11_12 (α β γ : ℝ) : Matrix (Fin 3) (Fin 3) ℂ :=
+  fun i j =>
+    let row : Fin 6 := ⟨(i : ℕ), by omega⟩
+    match j with
+    | 0 => V_sharp α β γ row 1   -- 列 1
+    | 1 => V_sharp α β γ row 4   -- 列 11
+    | 2 => V_sharp α β γ row 5   -- 列 12
 
--------------------------- Step 4: 列重排，按同余类分组 ----------------------------
+/-- 顶三行、列 {1,11,2} 的子矩阵 -/
+def Δ_top_1_11_2 (α β γ : ℝ) : Matrix (Fin 3) (Fin 3) ℂ :=
+  fun i j =>
+    let row : Fin 6 := ⟨(i : ℕ), by omega⟩
+    match j with
+    | 0 => V_sharp α β γ row 1   -- 列 1
+    | 1 => V_sharp α β γ row 4   -- 列 11
+    | 2 => V_sharp α β γ row 2   -- 列 2
 
--- 将列重排为：[0,3] (同余类0), [1,4] (同余类1), [2,5] (同余类2)
-def σ_col : Equiv.Perm (Fin 6) :=
-  ⟨![0, 3, 1, 4, 2, 5], ![0, 2, 4, 1, 3, 5], by decide, by decide⟩
+/-- 拉普拉斯展开公式：det V^♯ = (-t)(1+t) · (两项之和) -/
+lemma laplace_expansion (α β γ : ℝ) :
+    det (V_sharp α β γ) = (-t) * (1 + t) * (
+      - det (Δ_bot_0_10_2 α β γ) * det (Δ_top_1_11_12 α β γ) +
+      det (Δ_bot_0_10_12 α β γ) * det (Δ_top_1_11_2 α β γ)
+    ) := sorry
 
-def V₃ (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
-  (V₂ α β γ).submatrix id σ_col
+end LaplaceExpansion
 
--- V₃ 的显式形式：按同余类分成三个 6×2 块
-lemma V₃_explicit (α β γ : ℝ) : V₃ α β γ =
-  !![1,  (x α)^10,  0,      0,           0,              (t+1)*(x α)^2;
-     0,  0,         x α,    (x α)^11,    (t+1)*(x α)^2,  0;
-     1,  (y β)^10,  0,      0,           0,              (t+1)*(y β)^2;
-     0,  0,         y β,    (y β)^11,    (t+1)*(y β)^2,  0;
-     1,  (z γ)^10,  0,      0,           0,              (t+1)*(z γ)^2;
-     0,  0,         z γ,    (z γ)^11,    (t+1)*(z γ)^2,  0] := sorry
 
-lemma sign_σ_col : Equiv.Perm.sign σ_col = 1 := sorry
+/-! ## 关键三角恒等式 -/
 
-lemma det_V₂_eq_det_V₃ (α β γ : ℝ) : det (V₂ α β γ) = det (V₃ α β γ) := sorry
+section TrigonometricIdentities
 
--------------------------- Step 5: 行重排，按奇偶分组 ----------------------------
+/-- e^(iφ) - e^(iψ) = 2i·e^(i(φ+ψ)/2)·sin((φ-ψ)/2) -/
+lemma exp_diff_formula (φ ψ : ℝ) :
+    exp (I * φ) - exp (I * ψ) =
+    2 * I * exp (I * (φ + ψ) / 2) * Real.sin ((φ - ψ) / 2) := sorry
 
--- 将奇数行和偶数行分开：[0,2,4,1,3,5]
-def σ_row2 : Equiv.Perm (Fin 6) :=
-  ⟨![0, 2, 4, 1, 3, 5], ![0, 3, 1, 4, 2, 5], by decide, by decide⟩
+/-- 3×3 Fourier-Vandermonde 行列式的三角函数表达式 -/
+theorem det_FourierVDM_3x3_formula (θ₁ θ₂ θ₃ : ℝ) (p q : ℕ)
+    (h_order : θ₁ < θ₂ ∧ θ₂ < θ₃) (hp : 0 < p) (hq : 0 < q) :
+    ∃ (C : ℂ), C ≠ 0 ∧
+    let u : Fin 3 → ℝ := ![θ₁, θ₂, θ₃]
+    let e : Fin 3 → ℕ := ![0, p, q]
+    let Δ₁₂ := θ₂ - θ₁
+    let Δ₁₃ := θ₃ - θ₁
+    det (FourierVDM 3 u e) = C * (
+      Real.sin (p * Δ₁₂ / 2) * Real.sin (q * Δ₁₃ / 2) -
+      Real.sin (p * Δ₁₃ / 2) * Real.sin (q * Δ₁₂ / 2)
+    ) := sorry
 
-def V₄ (α β γ : ℝ) : Matrix (Fin 6) (Fin 6) ℂ :=
-  (V₃ α β γ).submatrix σ_row2 id
+/-- 函数 Φ_p(x) := sin(px)/sin(x) -/
+def Φ (p : ℕ) (x : ℝ) : ℝ := Real.sin (p * x) / Real.sin x
 
--- V₄ 的显式形式：前3行是奇数行，后3行是偶数行
-lemma V₄_explicit (α β γ : ℝ) : V₄ α β γ =
-  !![1,  (x α)^10,  0,      0,           0,              (t+1)*(x α)^2;
-     1,  (y β)^10,  0,      0,           0,              (t+1)*(y β)^2;
-     1,  (z γ)^10,  0,      0,           0,              (t+1)*(z γ)^2;
-     0,  0,         x α,    (x α)^11,    (t+1)*(x α)^2,  0;
-     0,  0,         y β,    (y β)^11,    (t+1)*(y β)^2,  0;
-     0,  0,         z γ,    (z γ)^11,    (t+1)*(z γ)^2,  0] := sorry
+/-- 函数 Ψ_p(x) := sin(px/2)/sin(x/2) -/
+def Ψ (p : ℕ) (x : ℝ) : ℝ := Real.sin (p * x / 2) / Real.sin (x / 2)
 
-lemma sign_σ_row2 : Equiv.Perm.sign σ_row2 = 1 := sorry
+end TrigonometricIdentities
 
-lemma det_V₃_eq_det_V₄ (α β γ : ℝ) : det (V₃ α β γ) = det (V₄ α β γ) := sorry
 
--------------------------- Step 6: 观察 V₄ 的分块结构 ----------------------------
+/-! ## 四个子式的判号 -/
 
--- V₄ 可以看作 2×3 分块矩阵：
--- [[A₀, 0,  C],
---  [0,  A₁, D]]
--- 其中 A₀, A₁ 是 3×2, C, D 是 3×2
+section SubdeterminantSigns
 
-def A₀ (α β γ : ℝ) : Matrix (Fin 3) (Fin 2) ℂ :=
-  !![1,        (x α)^10;
-     1,        (y β)^10;
-     1,        (z γ)^10]
+variable (α β γ : ℝ) (hα : 0 ≤ α) (hβ : α < β) (hγ : β < γ) (hπ : γ < π / 5)
 
-def A₁ (α β γ : ℝ) : Matrix (Fin 3) (Fin 2) ℂ :=
-  !![x α,      (x α)^11;
-     y β,      (y β)^11;
-     z γ,      (z γ)^11]
+/-- Φ₅(x) = 16sin⁴x - 20sin²x + 5 -/
+lemma Φ_5_formula (x : ℝ) : Φ 5 x = 16 * (Real.sin x)^4 - 20 * (Real.sin x)^2 + 5 := sorry
 
-def C (α β γ : ℝ) : Matrix (Fin 3) (Fin 2) ℂ :=
-  !![0,              (t+1)*(x α)^2;
-     0,              (t+1)*(y β)^2;
-     0,              (t+1)*(z γ)^2]
+/-- Φ₅ 在 (0, π/5) 上严格单调递减 -/
+lemma Φ_5_strict_anti : ∀ x y, 0 < x → x < y → y < π / 5 → Φ 5 y < Φ 5 x := sorry
 
-def D (α β γ : ℝ) : Matrix (Fin 3) (Fin 2) ℂ :=
-  !![(t+1)*(x α)^2,  0;
-     (t+1)*(y β)^2,  0;
-     (t+1)*(z γ)^2,  0]
+/-- Δ_bot(0,10,2) ≠ 0 -/
+lemma det_Δ_bot_0_10_2_ne_zero :
+    det (Δ_bot_0_10_2 α β γ) ≠ 0 := sorry
 
--------------------------- Step 7: 利用分块行列式公式 ----------------------------
+/-- Δ_bot(0,10,12) ≠ 0 -/
+lemma det_Δ_bot_0_10_12_ne_zero :
+    det (Δ_bot_0_10_12 α β γ) ≠ 0 := sorry
 
--- V₄ 的行列式可以通过 Laplace 展开或分块行列式公式计算
--- 由于 V₄ 有特殊的 2×3 块结构 [[A₀, 0, C], [0, A₁, D]]
--- 我们可以利用这个结构
+/-- Ψ₁₁ 在 (0, π/10) 上严格单调递减 -/
+lemma Ψ_11_strict_anti : ∀ x y, 0 < x → x < y → y < π/10 → Ψ 11 y < Ψ 11 x := sorry
 
--- 关键观察：C 和 D 的结构简单，可以进一步消去
--- 列操作：第 4 列不变，第 5 列 -= (t+1)*(x α)/(x α)^11 * 第 3 列（对第二块行）
+/-- Δ_top(1,11,2) ≠ 0 -/
+lemma det_Δ_top_1_11_2_ne_zero :
+    det (Δ_top_1_11_2 α β γ) ≠ 0 := sorry
 
--------------------------- Step 8: 最终行列式公式 ----------------------------
+/-- Δ_top(1,11,12) ≠ 0 -/
+lemma det_Δ_top_1_11_12_ne_zero :
+    det (Δ_top_1_11_12 α β γ) ≠ 0 := sorry
 
--- A₀ 和 A₁ 的秩和结构分析
-lemma rank_A₀ (α β γ : ℝ) (hαβ : α < β) (hβγ : β < γ) :
-  (A₀ α β γ).rank = 2 := sorry
+lemma laplace_terms_same_sign :
+    - det (Δ_bot_0_10_2 α β γ) * det (Δ_top_1_11_12 α β γ) +
+    det (Δ_bot_0_10_12 α β γ) * det (Δ_top_1_11_2 α β γ) ≠ 0 := sorry
 
-lemma rank_A₁ (α β γ : ℝ) (hαβ : α < β) (hβγ : β < γ) :
-  (A₁ α β γ).rank = 2 := sorry
+/-- 在几何约束 0 ≤ α < β < γ < π / 5 下，V 矩阵行列式非零 -/
+theorem V_invertible : det (V α β γ) ≠ 0 := by
+  -- 使用行变换公式：det V = (1-t)³ · det V^♯
+  rw [det_V_equals_det_V_sharp]
+  apply mul_ne_zero
+  -- 证明 (1-t)³ ≠ 0
+  · apply pow_ne_zero
+    exact one_minus_t_ne_zero
+  -- 证明 det V^♯ ≠ 0
+  · -- 使用拉普拉斯展开：det V^♯ = (-t)(1+t) · (两项之和)
+    rw [laplace_expansion]
+    apply mul_ne_zero
+    · apply mul_ne_zero
+      · exact neg_t_ne_zero
+      · exact one_plus_t_ne_zero
+    · -- 两项之和不为零
+      exact laplace_terms_same_sign α β γ
 
--- 综合所有步骤，得到最终的行列式公式
--- 注意：实际公式会更复杂，需要仔细计算分块行列式
-lemma detV_formula (α β γ : ℝ) :
-  det (V α β γ) = det F ^ 3 *
-    ((y β)^10 - (x α)^10) * ((z γ)^10 - (x α)^10) * ((z γ)^10 - (y β)^10) *
-    (y β - x α) * (z γ - x α) * (z γ - y β) := sorry
-
--- 辅助引理：在给定条件下，各项非零
-lemma exp_10_pairwise_ne (α β γ : ℝ)
-  (hα : 0 ≤ α) (hαβ : α < β) (hβγ : β < γ) (hγ : γ < 0.2 * π) :
-  exp (↑(10 * β) * I) ≠ exp (↑(10 * α) * I) ∧
-  exp (↑(10 * γ) * I) ≠ exp (↑(10 * α) * I) ∧
-  exp (↑(10 * γ) * I) ≠ exp (↑(10 * β) * I) := sorry
-
-lemma exp_pairwise_ne (α β γ : ℝ)
-  (hα : 0 ≤ α) (hαβ : α < β) (hβγ : β < γ) (hγ : γ < 0.2 * π) :
-  exp (β * I) ≠ exp (α * I) ∧
-  exp (γ * I) ≠ exp (α * I) ∧
-  exp (γ * I) ≠ exp (β * I) := sorry
-
--------------------------- 非零性定理 ----------------------------
-
-theorem detV_neq_0 (α β γ : ℝ)
-        (hα : 0 ≤ α) (hαβ : α < β) (hβγ : β < γ) (hγ : γ < 0.2 * π) :
-        det (V α β γ) ≠ 0 := sorry
+end SubdeterminantSigns
 
 end LeanVDM_example4
