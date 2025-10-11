@@ -21,21 +21,21 @@ example : min (min a b) c = min a (min b c) := by
   apply le_antisymm
   · apply le_min
     · apply le_trans
-      apply min_le_left
+      · apply min_le_left
       apply min_le_left
     apply le_min
     · apply le_trans
-      apply min_le_left
+      · apply min_le_left
       apply min_le_right
     apply min_le_right
   apply le_min
   · apply le_min
     · apply min_le_left
     apply le_trans
-    apply min_le_right
+    · apply min_le_right
     apply min_le_left
   apply le_trans
-  apply min_le_right
+  · apply min_le_right
   apply min_le_right
 
 theorem aux : min a b + c ≤ min (a + c) (b + c) := by
@@ -53,7 +53,7 @@ example : min a b + c = min (a + c) (b + c) := by
   apply add_le_add_right
   rw [sub_eq_add_neg]
   apply le_trans
-  apply aux
+  · apply aux
   rw [add_neg_cancel_right, add_neg_cancel_right]
 
 example : |a| - |b| ≤ |a - b| :=
@@ -61,13 +61,13 @@ example : |a| - |b| ≤ |a - b| :=
     |a| - |b| = |a - b + b| - |b| := by rw [sub_add_cancel]
     _ ≤ |a - b| + |b| - |b| := by
       apply sub_le_sub_right
-      apply abs_add
+      apply abs_add_le
     _ ≤ |a - b| := by rw [add_sub_cancel_right]
 
 
 -- alternatively
 example : |a| - |b| ≤ |a - b| := by
-  have h := abs_add (a - b) b
+  have h := abs_add_le (a - b) b
   rw [sub_add_cancel] at h
   linarith
 
@@ -115,3 +115,4 @@ example : Nat.gcd m n = Nat.gcd n m := by
 
 end
 
+end C02S04

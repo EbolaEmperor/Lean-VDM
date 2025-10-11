@@ -12,44 +12,55 @@ variable (a b c d : ℝ)
 
 example : min a b = min b a := by
   apply le_antisymm
-  · show min a b ≤ min b a
+  · -- min a b ≤ min b a
     apply le_min
     · apply min_le_right
-    apply min_le_left
-  · show min b a ≤ min a b
+    · apply min_le_left
+  · -- min b a ≤ min a b
     apply le_min
     · apply min_le_right
-    apply min_le_left
+    · apply min_le_left
 
 example : min a b = min b a := by
   have h : ∀ x y : ℝ, min x y ≤ min y x := by
     intro x y
     apply le_min
-    apply min_le_right
-    apply min_le_left
+    · apply min_le_right
+    · apply min_le_left
   apply le_antisymm
-  apply h
-  apply h
+  · apply h
+  · apply h
 
 example : min a b = min b a := by
   apply le_antisymm
   repeat
     apply le_min
-    apply min_le_right
-    apply min_le_left
+    · apply min_le_right
+    · apply min_le_left
 
 example : max a b = max b a := by
-  sorry
-example : min (min a b) c = min a (min b c) := by
-  sorry
-theorem aux : min a b + c ≤ min (a + c) (b + c) := by
-  sorry
-example : min a b + c = min (a + c) (b + c) := by
-  sorry
-#check (abs_add : ∀ a b : ℝ, |a + b| ≤ |a| + |b|)
+  apply le_antisymm
+  repeat
+    apply max_le
+    apply le_max_right
+    apply le_max_left
 
-example : |a| - |b| ≤ |a - b| :=
-  sorry
+example : min (min a b) c = min a (min b c) := by
+  apply min_assoc
+
+theorem aux : min a b + c ≤ min (a + c) (b + c) := by
+  rw [min_add]
+
+example : min a b + c = min (a + c) (b + c) := by
+  apply min_add
+
+#check abs
+
+#check (abs_add_le : ∀ a b : ℝ, |a + b| ≤ |a| + |b|)
+
+example : |a| - |b| ≤ |a - b| := by
+  apply abs_sub_abs_le_abs_sub
+
 end
 
 section
@@ -66,7 +77,15 @@ example : x ∣ x ^ 2 := by
   apply dvd_mul_left
 
 example (h : x ∣ w) : x ∣ y * (x * z) + x ^ 2 + w ^ 2 := by
-  sorry
+  apply dvd_add
+  · apply dvd_add
+    · rw [← mul_assoc, mul_comm y, mul_assoc]
+      apply dvd_mul_right
+    apply dvd_mul_left
+  apply dvd_trans
+  · exact h
+  · apply dvd_mul_left
+
 end
 
 section
@@ -78,7 +97,8 @@ variable (m n : ℕ)
 #check (Nat.lcm_zero_left n : Nat.lcm 0 n = 0)
 
 example : Nat.gcd m n = Nat.gcd n m := by
-  sorry
+  apply Nat.gcd_comm
+
 end
 
-
+end C02S04

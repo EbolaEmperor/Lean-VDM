@@ -36,22 +36,27 @@ variable (x y z : α)
 #check (sup_le : x ≤ z → y ≤ z → x ⊔ y ≤ z)
 
 example : x ⊓ y = y ⊓ x := by
-  sorry
+  apply inf_comm
 
 example : x ⊓ y ⊓ z = x ⊓ (y ⊓ z) := by
-  sorry
+  apply inf_assoc
 
 example : x ⊔ y = y ⊔ x := by
-  sorry
+  apply sup_comm
 
 example : x ⊔ y ⊔ z = x ⊔ (y ⊔ z) := by
-  sorry
+  apply sup_assoc
 
 theorem absorb1 : x ⊓ (x ⊔ y) = x := by
-  sorry
+  -- apply le_antisymm
+  -- · apply inf_le_left
+  -- apply le_inf
+  -- · apply le_refl
+  -- · apply le_sup_left
+  apply inf_sup_self
 
 theorem absorb2 : x ⊔ x ⊓ y = x := by
-  sorry
+  apply sup_inf_self
 
 end
 
@@ -70,10 +75,12 @@ variable {α : Type*} [Lattice α]
 variable (a b c : α)
 
 example (h : ∀ x y z : α, x ⊓ (y ⊔ z) = x ⊓ y ⊔ x ⊓ z) : a ⊔ b ⊓ c = (a ⊔ b) ⊓ (a ⊔ c) := by
-  sorry
+  rw [h, inf_comm _ a, inf_sup_self, inf_comm (a ⊔ b), h, ← sup_assoc, @inf_comm _ _ c a,
+      sup_inf_self, inf_comm]
 
 example (h : ∀ x y z : α, x ⊔ y ⊓ z = (x ⊔ y) ⊓ (x ⊔ z)) : a ⊓ (b ⊔ c) = a ⊓ b ⊔ a ⊓ c := by
-  sorry
+  rw [h, sup_comm _ a, sup_inf_self, sup_comm (a ⊓ b), h, ← inf_assoc, @sup_comm _ _ c a,
+      inf_sup_self, sup_comm]
 
 end
 
@@ -87,13 +94,13 @@ variable (a b c : R)
 #check (mul_nonneg : 0 ≤ a → 0 ≤ b → 0 ≤ a * b)
 
 example (h : a ≤ b) : 0 ≤ b - a := by
-  sorry
+  exact sub_nonneg_of_le h
 
-example (h: 0 ≤ b - a) : a ≤ b := by
-  sorry
+example (h : 0 ≤ b - a) : a ≤ b := by
+  exact le_of_sub_nonneg h
 
 example (h : a ≤ b) (h' : 0 ≤ c) : a * c ≤ b * c := by
-  sorry
+  exact mul_le_mul_of_nonneg_right h h'
 
 end
 
@@ -106,7 +113,6 @@ variable (x y z : X)
 #check (dist_triangle x y z : dist x z ≤ dist x y + dist y z)
 
 example (x y : X) : 0 ≤ dist x y := by
-  sorry
+  apply dist_nonneg
 
 end
-
